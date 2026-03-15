@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>3D Pendulum Wave Gallery</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #e0e0e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #ui-hint { position: absolute; bottom: 20px; width: 100%; text-align: center; color: #888; pointer-events: none; text-transform: uppercase; letter-spacing: 2px; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div id="ui-hint">Orbit: Left Click | Zoom: Scroll | Pan: Right Click</div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "orbit": "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js",
+                "gui": "https://cdn.jsdelivr.net/npm/lil-gui@0.19/+esm"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'orbit';
+        import { GUI } from 'gui';
+
+        // --- Scene & Camera ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf0f0f0);
+        scene.fog = new THREE.Fog(0xf0f0f0, 20, 100);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(25, 15, 35);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // --- Environment (The Room) ---
+        function createRoom() {
+            const floorGeo = new THREE.PlaneGeometry(200, 200);
+            const floorMat = new THREE.MeshPhongMaterial({ color: 0xcccccc });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            const grid = new THREE.GridHelper(100, 50, 0xaaaaaa, 0xdddddd);
+            scene.add(grid);
+
+            const light = new THREE.DirectionalLight(0xffffff, 1.2);
+            light.position.set(10, 20, 10);
+            light.castShadow = true;
+            scene.add(light);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        }
+
+        // --- Parameters ---
+        const params = {
+            count: 15,
+            mode: 'Synchronized',
+            baseLength: 15,
+            spacing: 1.5,
+            amplitude: 0.6,
+            decay: 0.0,
+            cycleTime: 60,
+            stepValue: 0.5, // Used for Arithmetic/Geometric
+            reset: () => { 
+                startTime = performance.now(); 
+                currentAmplitudes.fill(params.amplitude);
+            }
+        };
+
+        let pendulums = [];
+        let currentAmplitudes = [];
+        let startTime = performance.now();
+        let frameGroup = new THREE.Group();
+        scene.add(frameGroup);
+
+        function buildSystem() {
+            pendulums.forEach(p => scene.remove(p.group));
+            frameGroup.clear();
+            pendulums = [];
+            currentAmplitudes = new Array(params.count).fill(params.amplitude);
+
+            const g = 9.81;
+            const totalWidth = params.count * params.spacing;
+
+            // Create Frame
+            const frameMat = new THREE.MeshPhongMaterial({ color: 0x4a3728 });
+            const beamGeo = new THREE.BoxGeometry(1, 1, totalWidth + 2);
+            const topBeam = new THREE.Mesh(beamGeo, frameMat);
+            topBeam.position.y = 22;
+            topBeam.castShadow = true;
+            frameGroup.add(topBeam);
+
+            const pillarGeo = new THREE.BoxGeometry(1, 22, 1);
+            const p1 = new THREE.Mesh(pillarGeo, frameMat);
+            p1.position.set(0, 11, totalWidth/2 + 0.5);
+            const p2 = p1.clone();
+            p2.position.z = -totalWidth/2 - 0.5;
+            frameGroup.add(p1, p2);
+
+            // Create Pendulums
+            for (let i = 0; i < params.count; i++) {
+                let L;
+                if (params.mode === 'Synchronized') {
+                    const N = 50 + i;
+                    L = g * Math.pow(params.cycleTime / (2 * Math.PI * N), 2) * 50; 
+                } else if (params.mode === 'Arithmetic') {
+                    L = params.baseLength + (i * params.stepValue);
+                } else { // Geometric
+                    L = params.baseLength * Math.pow(1 + (params.stepValue * 0.1), i);
+                }
+
+                const group = new THREE.Group();
+                const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,-L,0)]);
+                const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({color: 0x333333}));
+                
+                const ball = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.5, 32, 32),
+                    new THREE.MeshStandardMaterial({ 
+                        color: new THREE.Color().setHSL(i/params.count, 0.7, 0.5),
+                        metalness: 0.6, roughness: 0.2 
+                    })
+                );
+                ball.position.y = -L;
+                ball.castShadow = true;
+
+                group.add(line, ball);
+                group.position.set(0, 22, (i * params.spacing) - (totalWidth/2));
+                scene.add(group);
+                pendulums.push({ group, length: L });
+            }
+        }
+
+        // --- GUI ---
+        const gui = new GUI();
+        gui.add(params, 'mode', ['Synchronized', 'Arithmetic', 'Geometric']).onChange(buildSystem);
+        gui.add(params, 'count', 5, 30, 1).onChange(buildSystem);
+        const folder = gui.addFolder('Mode Settings');
+        folder.add(params, 'stepValue', 0.1, 2).name('Growth Step');
+        folder.add(params, 'cycleTime', 10, 120).name('Sync Cycle (s)');
+        gui.add(params, 'amplitude', 0.1, 1.2).onChange(params.reset);
+        gui.add(params, 'decay', 0, 0.01, 0.0001).name('Air Decay');
+        gui.add(params, 'reset');
+
+        createRoom();
+        buildSystem();
+
+        let lastTime = performance.now();
+        function animate(now) {
+            const delta = (now - lastTime) / 1000;
+            const elapsed = (now - startTime) / 1000;
+            lastTime = now;
+
+            pendulums.forEach((p, i) => {
+                const g = 9.81;
+                // Decay simulation: reduce the individual amplitude over time
+                currentAmplitudes[i] *= (1 - params.decay);
+                
+                const period = 2 * Math.PI * Math.sqrt(p.length / (g * 50));
+                const angle = currentAmplitudes[i] * Math.cos((2 * Math.PI * elapsed) / period);
+                p.group.rotation.z = angle;
+            });
+
+            controls.update();
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+
+        requestAnimationFrame(animate);
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+    <style>
+        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; background: #f0f2f5; }
+        #left { width: 40%; padding: 40px; border-right: 2px solid #ccc; display: flex; flex-direction: column; gap: 20px; }
+        #right { width: 60%; padding: 40px; overflow-y: auto; background: white; display: none; }
+        .method-card { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 8px; background: #fafafa; }
+        .method-title { font-weight: bold; color: #2c3e50; border-bottom: 2px solid #eee; margin-bottom: 10px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 5px; }
+        input { padding: 10px; width: 60px; font-size: 1.2rem; }
+    </style>
+</head>
+<body>
+
+<div id="left">
+    <h2>Ratio Drill</h2>
+    <p id="question-text">The length of a pendulum ($L$) is multiplied by 4. What happens to the Period ($T$)?</p>
+    <p>Relationship: $T \propto \sqrt{L}$</p>
+    <div>
+        Factor change in $T$: <input type="number" id="user-input" step="0.1">
+    </div>
+    <button onclick="revealSolutions()">Check & See Methods</button>
+</div>
+
+<div id="right">
+    <h3>Four Ways to Solve:</h3>
+    
+    <div class="method-card">
+        <div class="method-title">1. Scaling (Factor Method)</div>
+        <p>Replace $L$ with the factor 4: <br> $T_{factor} = \sqrt{4} = 2$. <br> <b>The period doubles.</b></p>
+    </div>
+
+    <div class="method-card">
+        <div class="method-title">2. Divide Equations</div>
+        <p>$\frac{T_2}{T_1} = \frac{2\pi\sqrt{L_2/g}}{2\pi\sqrt{L_1/g}} = \sqrt{\frac{4L_1}{L_1}} = \sqrt{4} = 2$.</p>
+    </div>
+
+    <div class="method-card">
+        <div class="method-title">3. Reasoning vs Constant</div>
+        <p>Because $T$ depends on the square root of $L$, any change in $L$ is "dampened" by the root. To double the period, you need 4x the length.</p>
+    </div>
+
+    <div class="method-card">
+        <div class="method-title">4. Calculate the Constant (k)</div>
+        <p>Assume $L=1, T=1$. <br> $1 = k\sqrt{1} \rightarrow k=1$. <br> New $L=4$, so $T = 1\sqrt{4} = 2$.</p>
+    </div>
+</div>
+
+<script>
+    function revealSolutions() {
+        document.getElementById('right').style.display = 'block';
+        renderMath();
+    }
+    function renderMath() {
+        // This triggers KaTeX to format the math
+    }
+</script>
+
+</body>
+</html>

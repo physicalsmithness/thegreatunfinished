@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Coriolis Visualizer</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #e2e8f0;
+            --accent: #38bdf8;
+            --danger: #ef4444;
+            --success: #22c55e;
+            --warning: #eab308;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+            max-width: 1400px;
+            width: 100%;
+        }
+
+        .panel {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        label { display: block; margin-bottom: 4px; font-size: 0.9em; opacity: 0.8; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        select {
+            width: 100%;
+            padding: 10px;
+            background: #334155;
+            color: white;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            font-size: 1em;
+        }
+        
+        .value-display { font-family: monospace; color: var(--accent); float: right; }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .metric { text-align: center; font-size: 0.8em; }
+        .metric-val { display: block; font-size: 1.1em; font-weight: bold; color: var(--accent); margin-bottom: 2px; }
+
+        .canvas-container {
+            position: relative;
+            height: 600px;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #334155;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        .legend {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(15, 23, 42, 0.85);
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 0.85em;
+            pointer-events: none;
+            border: 1px solid #334155;
+        }
+        .legend-item { display: flex; align-items: center; margin-bottom: 6px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
+        .arrow { display: inline-block; margin-right: 8px; font-weight: bold; }
+
+        .description-box {
+            font-size: 0.95em;
+            line-height: 1.5;
+            background: rgba(56, 189, 248, 0.1);
+            border-left: 3px solid var(--accent);
+            padding: 15px;
+            border-radius: 0 4px 4px 0;
+        }
+        .description-box strong { color: var(--accent); }
+
+        .preset-buttons { display: flex; gap: 5px; flex-wrap: wrap; }
+        .btn-preset {
+            background: #334155; border: none; color: white; padding: 4px 8px; 
+            border-radius: 4px; cursor: pointer; font-size: 0.8em;
+        }
+        .btn-preset:hover { background: var(--accent); color: #000; }
+
+        /* HUD overlay for Cyclist weight */
+        .hud-weight {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            border: 2px solid #475569;
+            border-radius: 8px;
+            padding: 10px 20px;
+            text-align: center;
+            display: none; /* Hidden by default */
+        }
+        .hud-bar-container {
+            width: 200px; height: 10px; background: #333; margin-top: 5px; border-radius: 5px; overflow: hidden;
+        }
+        .hud-bar { height: 100%; background: var(--warning); width: 50%; transition: width 0.1s; }
+
+    </style>
+</head>
+<body>
+
+    <h1 style="font-weight:300; margin-bottom:10px;">Rotating Habitat <span style="color:var(--accent)">Activity Visualizer</span></h1>
+
+    <div class="container">
+        <div class="panel">
+            <div>
+                <label>Habitat Radius (m) <span id="val-r" class="value-display">224</span></label>
+                <input type="range" id="in-r" min="50" max="1000" step="10" value="224">
+            </div>
+
+            <div>
+                <label>Rotation (RPM) <span id="val-rpm" class="value-display">2.0</span></label>
+                <input type="range" id="in-rpm" min="0.1" max="5.0" step="0.1" value="2.0">
+                <div class="preset-buttons">
+                    <button class="btn-preset" onclick="setSim(224, 2)">Standard (2rpm/1g)</button>
+                    <button class="btn-preset" onclick="setSim(450, 1)">Large (1rpm/0.5g)</button>
+                    <button class="btn-preset" onclick="setSim(50, 4)">Small (4rpm/0.9g)</button>
+                </div>
+            </div>
+
+            <div class="metrics-grid">
+                <div class="metric"><span class="metric-val" id="out-g">1.00 g</span>Artificial Gravity</div>
+                <div class="metric"><span class="metric-val" id="out-vel">46.9 m/s</span>Floor Speed</div>
+                <div class="metric"><span class="metric-val" id="out-cor">0.63 m/s²</span>Coriolis @ Walk</div>
+            </div>
+
+            <hr style="border-color:#334155; width:100%;">
+
+            <label>Select Activity</label>
+            <select id="in-mode">
+                <option value="tennis_pro">Tennis: Prograde Serve (With Spin)</option>
+                <option value="tennis_retro">Tennis: Retrograde Serve (Against Spin)</option>
+                <option value="waterfall">Waterfall (5m Drop)</option>
+                <option value="hose_up">Hose: Spraying Up (Radial In)</option>
+                <option value="hose_down">Hose: Spraying Down (Radial Out)</option>
+                <option value="bike_pro">Cyclist: Prograde (Fast)</option>
+                <option value="bike_retro">Cyclist: Retrograde (Fast)</option>
+            </select>
+
+            <div class="description-box" id="desc-box">
+                </div>
+        </div>
+
+        <div class="panel" style="padding:0; overflow:hidden;">
+            <div class="canvas-container">
+                <canvas id="simCanvas"></canvas>
+                
+                <div class="legend">
+                    <div class="legend-item"><div class="dot" style="background:#fff"></div> Particle / Ball</div>
+                    <div class="legend-item"><div class="arrow" style="color:#ef4444">↓</div> Artificial Gravity</div>
+                    <div class="legend-item"><div class="arrow" style="color:#38bdf8">→</div> Coriolis Force</div>
+                    <div class="legend-item" style="margin-top:5px; font-size:0.8em; color:#94a3b8">View: Cross-section (Rotating Frame)</div>
+                </div>
+
+                <div id="hud-weight" class="hud-weight">
+                    <div style="font-size:0.9em; color:#ccc;">FELT WEIGHT</div>
+                    <div id="hud-weight-text" style="font-size:1.4em; font-weight:bold; color:white;">100%</div>
+                    <div class="hud-bar-container">
+                        <div id="hud-weight-bar" class="hud-bar"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // --- Constants ---
+    const G_EARTH = 9.81;
+    const SCALE_PIXELS_PER_METER = 20; 
+
+    // --- State ---
+    let state = {
+        radius: 224, // meters
+        rpm: 2.0,
+        mode: 'tennis_pro',
+        time: 0
+    };
+
+    // --- DOM ---
+    const ui = {
+        r: document.getElementById('in-r'),
+        rpm: document.getElementById('in-rpm'),
+        mode: document.getElementById('in-mode'),
+        valR: document.getElementById('val-r'),
+        valRpm: document.getElementById('val-rpm'),
+        outG: document.getElementById('out-g'),
+        outVel: document.getElementById('out-vel'),
+        outCor: document.getElementById('out-cor'),
+        desc: document.getElementById('desc-box'),
+        hud: document.getElementById('hud-weight'),
+        hudText: document.getElementById('hud-weight-text'),
+        hudBar: document.getElementById('hud-weight-bar'),
+        canvas: document.getElementById('simCanvas')
+    };
+    
+    const ctx = ui.canvas.getContext('2d');
+
+    // --- Physics Engine ---
+    let particles = [];
+
+    function getPhysics() {
+        const omega = (state.rpm * 2 * Math.PI) / 60; 
+        const gBase = omega * omega * state.radius;
+        const floorVel = omega * state.radius;
+        return { omega, gBase, floorVel };
+    }
+
+    function spawnParticle(type) {
+        const phys = getPhysics();
+        const p = {
+            x: 0, 
+            y: 0, 
+            vx: 0, 
+            vy: 0, 
+            life: 1.0, 
+            type: type, // 'water', 'ball'
+            trail: [] 
+        };
+
+        // Reset positions based on mode
+        // Coordinate system: (0,0) is roughly eye level. +Y is Down (Radial Out). +X is Right (Prograde).
+        
+        switch (state.mode) {
+            case 'tennis_pro':
+                p.x = -300; // Left side
+                p.y = -40;  // 2m height
+                p.vx = 25 * SCALE_PIXELS_PER_METER; // 25 m/s serve
+                p.vy = -2 * SCALE_PIXELS_PER_METER; // Slight loft
+                p.life = 1.5;
+                p.type = 'ball';
+                break;
+            case 'tennis_retro':
+                p.x = 300; // Right side
+                p.y = -40;
+                p.vx = -25 * SCALE_PIXELS_PER_METER; // 25 m/s against spin
+                p.vy = -2 * SCALE_PIXELS_PER_METER;
+                p.life = 1.5;
+                p.type = 'ball';
+                break;
+            case 'waterfall':
+                p.x = -100 + (Math.random()*20); // Source offset
+                p.y = -100; // 5m up
+                p.vx = 2 * SCALE_PIXELS_PER_METER; // Initial flow speed
+                p.vy = 0;
+                p.life = 2.0;
+                p.type = 'water';
+                break;
+            case 'hose_up':
+                p.x = 0;
+                p.y = 0; // Waist height
+                // Spray Up (Radial In, -Y) and slightly Prograde (+X)
+                p.vx = (Math.random()*2 + 1) * SCALE_PIXELS_PER_METER;
+                p.vy = -12 * SCALE_PIXELS_PER_METER; 
+                p.life = 1.2;
+                p.type = 'water';
+                break;
+            case 'hose_down':
+                p.x = 0;
+                p.y = -100; // 5m up on a balcony
+                // Spray Down (Radial Out, +Y)
+                p.vx = 2 * SCALE_PIXELS_PER_METER;
+                p.vy = 5 * SCALE_PIXELS_PER_METER;
+                p.life = 1.5;
+                p.type = 'water';
+                break;
+        }
+        return p;
+    }
+
+    function updateParticles(dt) {
+        const phys = getPhysics();
+        
+        // Spawn control
+        if (state.mode.includes('tennis')) {
+            if (particles.length === 0 || particles[0].life <= 0) {
+                particles = [spawnParticle()];
+            }
+        } else if (state.mode.includes('water') || state.mode.includes('hose')) {
+            // Continuous spawn
+            for(let i=0; i<3; i++) particles.push(spawnParticle());
+        } else {
+            particles = []; // Clear for bike mode
+        }
+
+        // Physics Integration
+        particles.forEach(p => {
+            // Convert pixels to meters for calc
+            const yMeters = p.y / SCALE_PIXELS_PER_METER; 
+            const vxMeters = p.vx / SCALE_PIXELS_PER_METER;
+            const vyMeters = p.vy / SCALE_PIXELS_PER_METER;
+
+            // 1. Centrifugal (Gravity)
+            // Increases with radius. Radius = state.radius + yMeters.
+            // But locally for small y, approx constant gBase.
+            // Let's be precise: g = w^2 * (R + y)
+            const gLocal = phys.omega * phys.omega * (state.radius + yMeters);
+            
+            // 2. Coriolis
+            // a_cor_x = -2 * w * vy (Radial velocity causes tangential force)
+            // a_cor_y = +2 * w * vx (Tangential velocity causes radial force)
+            
+            // Note directions:
+            // vy is +Down (Radial Out). -2*w*vy -> Force Left (Retrograde).
+            // vx is +Right (Prograde). +2*w*vx -> Force Down (Radial Out/Heavier).
+            
+            const ax = -2 * phys.omega * vyMeters;
+            const ay =  2 * phys.omega * vxMeters + gLocal; // +gLocal is gravity
+
+            // Integrate
+            p.vx += ax * SCALE_PIXELS_PER_METER * dt;
+            p.vy += ay * SCALE_PIXELS_PER_METER * dt;
+            
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+
+            p.life -= dt;
+            
+            // Trail logic
+            if (p.type === 'ball' && Math.random() > 0.5) {
+                p.trail.push({x: p.x, y: p.y});
+                if(p.trail.length > 20) p.trail.shift();
+            }
+        });
+
+        // Cleanup
+        particles = particles.filter(p => p.life > 0 && p.y < 300);
+    }
+
+    // --- Rendering ---
+    function render() {
+        // Setup
+        const w = ui.canvas.width = ui.canvas.clientWidth;
+        const h = ui.canvas.height = ui.canvas.clientHeight;
+        const cx = w/2;
+        const cy = h/2 + 100; // Floor level
+        const phys = getPhysics();
+
+        // Clear
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0,0,w,h);
+
+        // Draw Floor
+        ctx.strokeStyle = "#475569";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, cy);
+        ctx.lineTo(w, cy);
+        ctx.stroke();
+        
+        // Floor markings (to show speed/movement abstractly)
+        ctx.fillStyle = "#1e293b";
+        for(let i=-500; i<500; i+=100) {
+            ctx.fillRect(cx + i - 2, cy, 4, 10);
+        }
+
+        // --- Cyclist Mode Special Rendering ---
+        if (state.mode.includes('bike')) {
+            const isPro = state.mode === 'bike_pro';
+            const bikeSpeed = 10; // m/s (~22mph)
+            
+            // Physics Calc
+            // F_net = m(g + 2wv) for prograde
+            // F_net = m(g - 2wv) for retrograde
+            const corTerm = 2 * phys.omega * bikeSpeed;
+            const gEff = phys.gBase + (isPro ? corTerm : -corTerm);
+            const ratio = gEff / phys.gBase;
+            
+            // Draw Bike
+            const bx = cx + (Math.sin(Date.now()/500)*20); // Slight wobble
+            const by = cy - 40;
+            
+            // Bike Body
+            ctx.fillStyle = isPro ? "#38bdf8" : "#fbbf24";
+            ctx.beginPath();
+            ctx.arc(bx, by, 15, 0, Math.PI*2);
+            ctx.fill();
+            
+            // Wheels
+            ctx.strokeStyle = "#94a3b8";
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(bx-25, by+25, 15, 0, Math.PI*2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(bx+25, by+25, 15, 0, Math.PI*2);
+            ctx.stroke();
+            
+            // Direction Arrow
+            ctx.fillStyle = "#fff";
+            ctx.font = "bold 20px Arial";
+            ctx.fillText(isPro ? "→" : "←", bx - 10, by - 20);
+
+            // Force Vectors
+            // Gravity (Base)
+            drawArrow(ctx, bx, by, 0, 50, "#475569", 4);
+            // Added/Subtracted Weight
+            const extraH = (ratio - 1) * 50; 
+            if (Math.abs(extraH) > 2) {
+                const col = extraH > 0 ? "#ef4444" : "#22c55e"; // Red=Heavy, Green=Light
+                drawArrow(ctx, bx + 10, by, 0, 50 + extraH, col, 4);
+            }
+
+            // HUD update
+            ui.hud.style.display = 'block';
+            ui.hudText.textContent = Math.round(ratio * 100) + "%";
+            ui.hudText.style.color = ratio > 1 ? "#ef4444" : "#22c55e";
+            ui.hudBar.style.width = Math.min(100, ratio * 50) + "%"; // Scale for bar
+            ui.hudBar.style.backgroundColor = ratio > 1 ? "#ef4444" : "#22c55e";
+
+        } else {
+            ui.hud.style.display = 'none';
+        }
+
+        // --- Particles Rendering ---
+        particles.forEach(p => {
+            const px = cx + p.x;
+            const py = cy + p.y;
+            
+            if (p.type === 'ball') {
+                // Draw Trail
+                if (p.trail.length > 0) {
+                    ctx.strokeStyle = "rgba(255,255,0,0.3)";
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(cx + p.trail[0].x, cy + p.trail[0].y);
+                    for(let t of p.trail) ctx.lineTo(cx + t.x, cy + t.y);
+                    ctx.stroke();
+                }
+                // Draw Ball
+                ctx.fillStyle = "#fbbf24";
+                ctx.beginPath();
+                ctx.arc(px, py, 6, 0, Math.PI*2);
+                ctx.fill();
+                
+            } else if (p.type === 'water') {
+                ctx.fillStyle = "rgba(56, 189, 248, 0.6)";
+                ctx.beginPath();
+                ctx.arc(px, py, 3, 0, Math.PI*2);
+                ctx.fill();
+            }
+        });
+
+        requestAnimationFrame(render);
+    }
+
+    function drawArrow(ctx, x, y, dx, dy, color, w) {
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = w;
+        const head = 8;
+        const angle = Math.atan2(dy, dx);
+        
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x+dx, y+dy);
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.moveTo(x+dx, y+dy);
+        ctx.lineTo(x+dx - head*Math.cos(angle-Math.PI/6), y+dy - head*Math.sin(angle-Math.PI/6));
+        ctx.lineTo(x+dx - head*Math.cos(angle+Math.PI/6), y+dy - head*Math.sin(angle+Math.PI/6));
+        ctx.fill();
+    }
+
+    // --- Loop ---
+    let lastTime = 0;
+    function loop(timestamp) {
+        const dt = (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
+        if (dt < 0.1) updateParticles(dt);
+        render();
+        requestAnimationFrame(loop);
+    }
+
+    // --- Interaction ---
+    function updateText() {
+        const phys = getPhysics();
+        ui.valR.textContent = state.radius;
+        ui.valRpm.textContent = state.rpm;
+        ui.outG.textContent = (phys.gBase / G_EARTH).toFixed(2) + " g";
+        ui.outVel.textContent = phys.floorVel.toFixed(1) + " m/s";
+        ui.outCor.textContent = (2 * phys.omega * 1.5).toFixed(2) + " m/s²";
+
+        let html = "";
+        switch (state.mode) {
+            case 'tennis_pro':
+                html = `<strong>Tennis (With Spin):</strong> Ball travels faster than the air/floor. Coriolis pushes it <strong>DOWN</strong> (Radial Out).<br><em>Result:</em> The ball drops faster than normal gravity. "Heavy Ball" feel.`;
+                break;
+            case 'tennis_retro':
+                html = `<strong>Tennis (Against Spin):</strong> Ball fights the rotation. Coriolis pushes it <strong>UP</strong> (Radial In).<br><em>Result:</em> The ball "floats" and carries further than expected.`;
+                break;
+            case 'waterfall':
+                html = `<strong>Waterfall:</strong> Water falls from a slower inner radius to a faster outer radius. It lags behind the floor.<br><em>Result:</em> Stream curves <strong>Retrograde</strong> (Left). <br><em>Note:</em> Drains must be placed "down-spin" from the faucet.`;
+                break;
+            case 'hose_up':
+                html = `<strong>Hose (Spraying Up):</strong> Water moves to a slower inner radius but keeps its speed.<br><em>Result:</em> Stream deflects <strong>Prograde</strong> (Right/With Spin).`;
+                break;
+            case 'hose_down':
+                html = `<strong>Hose (Spraying Down):</strong> Water falls to a faster outer radius and lags behind.<br><em>Result:</em> Stream deflects <strong>Retrograde</strong> (Left/Against Spin).`;
+                break;
+            case 'bike_pro':
+                html = `<strong>Cycling (With Spin):</strong> Speed adds to rotation.<br><em>Result:</em> You feel <strong>Heavier</strong>. Better traction, but harder to pedal uphill.`;
+                break;
+            case 'bike_retro':
+                html = `<strong>Cycling (Against Spin):</strong> Speed cancels rotation.<br><em>Result:</em> You feel <strong>Lighter</strong>. <span style="color:var(--danger)">Warning:</span> At high speeds, you may lose traction or lift off!`;
+                break;
+        }
+        ui.desc.innerHTML = html;
+    }
+
+    window.setSim = (r, rpm) => {
+        state.radius = r;
+        state.rpm = rpm;
+        ui.r.value = r;
+        ui.rpm.value = rpm;
+        updateText();
+    };
+
+    ui.r.addEventListener('input', (e) => { state.radius = +e.target.value; updateText(); });
+    ui.rpm.addEventListener('input', (e) => { state.rpm = +e.target.value; updateText(); });
+    ui.mode.addEventListener('change', (e) => { state.mode = e.target.value; particles = []; updateText(); });
+
+    updateText();
+    requestAnimationFrame(loop);
+
+</script>
+</body>
+</html>

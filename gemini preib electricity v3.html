@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pre-IB Electricity Quiz</title>
+<style>
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f4f7f6;
+        color: #333;
+        line-height: 1.6;
+        padding: 20px;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    h1 {
+        text-align: center;
+        color: #2c3e50;
+    }
+    .quiz-container {
+        background: #fff;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .question {
+        font-size: 1.2em;
+        margin-bottom: 20px;
+        font-weight: 600;
+    }
+    .options {
+        list-style-type: none;
+        padding: 0;
+    }
+    .options li {
+        background: #ecf0f1;
+        margin: 10px 0;
+        padding: 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background 0.3s ease;
+    }
+    .options li:hover {
+        background: #dcdde1;
+    }
+    .options li.correct {
+        background: #2ecc71;
+        color: white;
+    }
+    .options li.wrong {
+        background: #e74c3c;
+        color: white;
+    }
+    .feedback {
+        margin-top: 20px;
+        padding: 15px;
+        border-radius: 5px;
+        display: none;
+        font-size: 0.95em;
+    }
+    .feedback.show {
+        display: block;
+    }
+    .feedback-correct {
+        background: #d4efdf;
+        border-left: 5px solid #27ae60;
+    }
+    .feedback-wrong {
+        background: #fadbd8;
+        border-left: 5px solid #c0392b;
+    }
+    .controls {
+        margin-top: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    button {
+        background: #3498db;
+        color: #fff;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 1em;
+        display: none;
+    }
+    button:hover {
+        background: #2980b9;
+    }
+    .score {
+        font-weight: bold;
+        font-size: 1.1em;
+    }
+</style>
+</head>
+<body>
+
+<h1>Pre-IB Electricity Masterclass</h1>
+
+<div class="quiz-container">
+    <div id="quiz-end" style="display:none; text-align:center;">
+        <h2>Quiz Complete!</h2>
+        <p class="score" id="final-score"></p>
+        <button id="restart-btn" style="display:inline-block; margin-top:10px;" onclick="location.reload()">Restart Quiz</button>
+    </div>
+
+    <div id="quiz-active">
+        <div class="score" id="score-display">Score: 0 / 0</div>
+        <div class="question" id="question-text">Loading question...</div>
+        <ul class="options" id="options-list"></ul>
+        <div class="feedback" id="feedback-box"></div>
+        <div class="controls">
+            <button id="next-btn" style="display: none;">Next Question</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const questions = [
+        {
+            question: "What is the correct definition of electric current?",
+            options: [
+                "The total amount of charge in a circuit.",
+                "The rate of flow of charge.",
+                "The energy transferred per unit charge.",
+                "The flow of positive ions in a metal conductor."
+            ],
+            answer: 1,
+            explanation: "Current is the rate of flow of charge. Examiner reports note that many students lose marks by omitting the idea of 'rate' or 'per second', incorrectly stating it is just 'a flow of electrons'."
+        },
+        {
+            question: "How should an ammeter and a voltmeter be connected to measure the voltage and current of a single component?",
+            options: [
+                "Ammeter in series, voltmeter in series.",
+                "Ammeter in parallel, voltmeter in parallel.",
+                "Ammeter in parallel, voltmeter in series.",
+                "Ammeter in series, voltmeter in parallel."
+            ],
+            answer: 3,
+            explanation: "To correctly measure a component, the ammeter must be connected in series with it, and the voltmeter must be connected in parallel across it. Placing a voltmeter in series is a common mistake that prevents the circuit from working properly."
+        },
+        {
+            question: "A 9.0 V battery is connected in series with a 250 Ω resistor and a second resistor, X. The current in the circuit is 0.012 A. What is the resistance of resistor X?",
+            options: [
+                "750 Ω",
+                "250 Ω",
+                "500 Ω",
+                "1000 Ω"
+            ],
+            answer: 2,
+            explanation: "First, use V = I × R to find the total resistance: 9.0 V / 0.012 A = 750 Ω. In a series circuit, resistances add up. So, the resistance of X is the total resistance minus the known resistor: 750 Ω - 250 Ω = 500 Ω."
+        },
+        {
+            question: "How does the resistance of a metal filament lamp change as the voltage across it increases?",
+            options: [
+                "It remains constant because metal is an ohmic conductor.",
+                "It decreases because the wire gets hotter and expands.",
+                "It increases because the temperature rises, causing more collisions between electrons and lattice ions.",
+                "It increases because the current decreases."
+            ],
+            answer: 2,
+            explanation: "As voltage increases, the current increases, causing the filament's temperature to rise. This increases the vibrations of the lattice ions, leading to more frequent collisions with electrons, thereby increasing the resistance."
+        },
+        {
+            question: "A hair dryer has a current of 9.6 A when connected to a 230 V mains supply. What is its power?",
+            options: [
+                "24 W",
+                "2200 W",
+                "2.2 W",
+                "4.1 W"
+            ],
+            answer: 1,
+            explanation: "Using the formula Power = current × voltage, we get P = 9.6 A × 230 V = 2208 W. This is approximately 2200 W (or 2.2 kW)."
+        },
+        {
+            question: "What happens to the brightness of a lamp in series with a Light Dependent Resistor (LDR) when the LDR is covered with a dark sheet of paper?",
+            options: [
+                "It stays the same because current is conserved in a series circuit.",
+                "It gets brighter because the LDR's resistance decreases.",
+                "It turns off completely because LDRs block all current in the dark.",
+                "It gets dimmer because the LDR's resistance increases, decreasing the circuit current."
+            ],
+            answer: 3,
+            explanation: "Covering the LDR reduces the light intensity, which increases its resistance. In a series circuit, this increases the total resistance, reducing the overall current and making the lamp dimmer."
+        },
+        {
+            question: "What is the primary difference between mains electricity and electricity supplied by a battery?",
+            options: [
+                "Mains electricity is direct current (d.c.), and a battery provides alternating current (a.c.).",
+                "Mains electricity is alternating current (a.c.), and a battery provides direct current (d.c.).",
+                "Mains electricity only carries positive charges, whereas a battery carries electrons.",
+                "There is no difference in the type of current, only the voltage level."
+            ],
+            answer: 1,
+            explanation: "Mains electricity is alternating current (a.c.), meaning the current periodically changes direction. A cell or battery supplies direct current (d.c.), which flows in one direction only."
+        },
+        {
+            question: "In an experiment to investigate how current varies with voltage for a metal filament lamp, why is a variable resistor (or variable power supply) included in the circuit?",
+            options: [
+                "To prevent the lamp from overheating.",
+                "To measure the resistance of the lamp directly.",
+                "To change the voltage across the lamp so multiple pairs of readings can be recorded.",
+                "To keep the current constant throughout the experiment."
+            ],
+            answer: 2,
+            explanation: "A variable resistor or variable power supply allows you to change the potential difference (voltage) across the component. This lets you measure the current at various voltages to plot a graph."
+        }
+    ];
+
+    // Shuffle questions
+    questions.sort(function() { return Math.random() - 0.5; });
+
+    let currentQuestionIndex = 0;
+    let score = 0;
+    let answered = false;
+
+    const questionText = document.getElementById('question-text');
+    const optionsList = document.getElementById('options-list');
+    const feedbackBox = document.getElementById('feedback-box');
+    const nextBtn = document.getElementById('next-btn');
+    const scoreDisplay = document.getElementById('score-display');
+
+    function loadQuestion() {
+        answered = false;
+        feedbackBox.className = 'feedback';
+        feedbackBox.innerHTML = '';
+        nextBtn.style.display = 'none';
+        
+        const q = questions[currentQuestionIndex];
+        questionText.innerHTML = (currentQuestionIndex + 1) + ". " + q.question;
+        
+        optionsList.innerHTML = '';
+        for (let i = 0; i < q.options.length; i++) {
+            const li = document.createElement('li');
+            li.innerHTML = q.options[i];
+            li.onclick = function() { selectAnswer(i, li); };
+            optionsList.appendChild(li);
+        }
+    }
+
+    function selectAnswer(selectedIndex, liElement) {
+        if (answered) return;
+        answered = true;
+
+        const q = questions[currentQuestionIndex];
+        const allOptions = optionsList.children;
+
+        // Highlight correct and wrong answers
+        if (selectedIndex === q.answer) {
+            liElement.className = 'correct';
+            score++;
+            feedbackBox.className = 'feedback show feedback-correct';
+            feedbackBox.innerHTML = "<strong>Correct!</strong> <br><br> " + q.explanation;
+        } else {
+            liElement.className = 'wrong';
+            allOptions[q.answer].className = 'correct';
+            feedbackBox.className = 'feedback show feedback-wrong';
+            feedbackBox.innerHTML = "<strong>Incorrect.</strong> <br><br> " + q.explanation;
+        }
+
+        scoreDisplay.innerHTML = "Score: " + score + " / " + (currentQuestionIndex + 1);
+        nextBtn.style.display = 'inline-block';
+    }
+
+    nextBtn.onclick = function() {
+        currentQuestionIndex++;
+        if (currentQuestionIndex < questions.length) {
+            loadQuestion();
+        } else {
+            document.getElementById('quiz-active').style.display = 'none';
+            document.getElementById('quiz-end').style.display = 'block';
+            document.getElementById('final-score').innerHTML = "You scored " + score + " out of " + questions.length + "!";
+        }
+    };
+
+    // Initialize immediately without waiting for event listeners
+    loadQuestion();
+</script>
+</body>
+</html>

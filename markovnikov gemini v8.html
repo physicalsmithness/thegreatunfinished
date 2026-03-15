@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Ultimate Markovnikov Comparison</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .header-container {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            max-width: 1200px;
+            width: 100%;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+        }
+        h2 { margin-top: 0; text-align: center; }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+            justify-content: center;
+            background: #eef2f5;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-grow: 1;
+            min-width: 250px;
+        }
+        select, input[type="range"] {
+            padding: 8px;
+            font-size: 16px;
+            flex-grow: 1;
+        }
+        input[type="range"] { cursor: pointer; }
+
+        /* Grid for the 3 panels */
+        .panels-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            max-width: 1200px;
+            width: 100%;
+        }
+        .panel {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+        }
+        .panel h3 {
+            margin-top: 0;
+            font-size: 1.1em;
+            text-align: center;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+        }
+        .explanation {
+            min-height: 80px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            font-size: 0.95em;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+        svg {
+            width: 100%;
+            height: 250px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #fafafa;
+            margin-bottom: 15px;
+        }
+        
+        /* New Chemical Info Boxes under SVGs */
+        .chem-specific-info {
+            padding: 12px;
+            background: #e8f4f8;
+            border-left: 4px solid #17a2b8;
+            border-radius: 4px;
+            font-size: 0.9em;
+            line-height: 1.4;
+            min-height: 90px;
+        }
+
+        .atom { font-weight: bold; dominant-baseline: middle; text-anchor: middle; transition: fill 0.3s ease; }
+        .carbon-chain { font-size: 20px; }
+        .charge { font-size: 18px; font-weight: bold; dominant-baseline: middle; text-anchor: middle; }
+        .bond { stroke: black; stroke-width: 3; stroke-linecap: round; }
+        .pi-bond { stroke: #d9534f; stroke-width: 3; stroke-linecap: round; }
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+            color: white;
+            margin-left: 10px;
+        }
+        .status-stable { background: #28a745; }
+        .status-unstable { background: #dc3545; }
+        .status-conditional { background: #17a2b8; }
+    </style>
+</head>
+<body>
+
+<div class="header-container">
+    <h2>Simultaneous Regioselectivity Comparison</h2>
+    <div class="controls">
+        <div class="control-group">
+            <label for="chemical"><strong>Chemical:</strong></label>
+            <select id="chemical">
+                <option value="HCl">Hydrochloric Acid (HCl)</option>
+                <option value="HBr" selected>Hydrobromic Acid (HBr)</option>
+                <option value="HI">Hydroiodic Acid (HI)</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="progress"><strong>Reaction Progress:</strong></label>
+            <input type="range" id="progress" min="0" max="100" value="0">
+        </div>
+    </div>
+</div>
+
+<div class="panels-grid">
+    <div class="panel">
+        <h3>1. Markovnikov <span class="status-badge status-stable">Major Product</span></h3>
+        <div class="explanation" id="exp-1">H-X approaches the double bond.</div>
+        <svg viewBox="0 0 500 250" id="svg-1">
+            <text class="atom carbon-chain" x="100" y="180">CH₃</text>
+            <line class="bond" x1="130" y1="180" x2="200" y2="180" />
+            <text class="atom carbon-chain" x="230" y="180">CH</text>
+            <line class="bond" x1="260" y1="185" x2="330" y2="185" />
+            <line class="pi-bond" id="pi-1" x1="260" y1="175" x2="330" y2="175" />
+            <text class="atom carbon-chain" x="360" y="180">CH₂</text>
+
+            <line class="bond" id="ch-1" x1="0" y1="0" x2="0" y2="0" opacity="0" />
+            <line class="bond" id="cx-1" x1="0" y1="0" x2="0" y2="0" opacity="0" />
+
+            <line class="bond" id="hx-1" x1="230" y1="40" x2="280" y2="40" />
+            <text class="atom" id="h-1" x="210" y="40" fill="#0275d8" font-size="20px">H</text>
+            <circle id="halo-1" cx="300" cy="40" r="15" fill="#d9534f" opacity="0" />
+            <text class="atom x-atom" id="x-1" x="300" y="40" fill="#d9534f" font-size="20px">Br</text>
+
+            <circle id="cbg-1" cx="0" cy="0" r="12" fill="white" opacity="0"/>
+            <text class="charge" id="cch-1" x="0" y="0" fill="#d9534f" opacity="0">+</text>
+            <circle id="xbg-1" cx="0" cy="0" r="12" fill="white" opacity="0"/>
+            <text class="charge" id="xch-1" x="0" y="0" fill="#0275d8" opacity="0">-</text>
+        </svg>
+        <div class="chem-specific-info" id="info-1"></div>
+    </div>
+
+    <div class="panel">
+        <h3>2. Anti-Markovnikov (Ionic) <span class="status-badge status-unstable">Unlikely</span></h3>
+        <div class="explanation" id="exp-2">H-X approaches the double bond.</div>
+        <svg viewBox="0 0 500 250" id="svg-2">
+            <text class="atom carbon-chain" x="100" y="180">CH₃</text>
+            <line class="bond" x1="130" y1="180" x2="200" y2="180" />
+            <text class="atom carbon-chain" x="230" y="180">CH</text>
+            <line class="bond" x1="260" y1="185" x2="330" y2="185" />
+            <line class="pi-bond" id="pi-2" x1="260" y1="175" x2="330" y2="175" />
+            <text class="atom carbon-chain" x="360" y="180">CH₂</text>
+
+            <line class="bond" id="ch-2" x1="0" y1="0" x2="0" y2="0" opacity="0" />
+            <line class="bond" id="cx-2" x1="0" y1="0" x2="0" y2="0" opacity="0" />
+
+            <line class="bond" id="hx-2" x1="230" y1="40" x2="280" y2="40" />
+            <text class="atom" id="h-2" x="210" y="40" fill="#0275d8" font-size="20px">H</text>
+            <circle id="halo-2" cx="300" cy="40" r="15" fill="#d9534f" opacity="0" />
+            <text class="atom x-atom" id="x-2" x="300" y="40" fill="#d9534f" font-size="20px">Br</text>
+
+            <circle id="cbg-2" cx="0" cy="0" r="12" fill="white" opacity="0"/>
+            <text class="charge" id="cch-2" x="0" y="0" fill="#d9534f" opacity="0">+</text>
+            <circle id="xbg-2" cx="0" cy="0" r="12" fill="white" opacity="0"/>
+            <text class="charge" id="xch-2" x="0" y="0" fill="#0275d8" opacity="0">-</text>
+        </svg>
+        <div class="chem-specific-info" id="info-2"></div>
+    </div>
+
+    <div class="panel">
+        <h3>3. Peroxide Radical <span class="status-badge status-conditional" id="badge-3">Works with HBr</span></h3>
+        <div class="explanation" id="exp-3">Reagents approach.</div>
+        <svg viewBox="0 0 500 250" id="svg-3">
+            <text class="atom carbon-chain" x="100" y="180">CH₃</text>
+            <line class="bond" x1="130" y1="180" x2="200" y2="180" />
+            <text class="atom carbon-chain" x="230" y="180">CH</text>
+            <line class="bond" x1="260" y1="185" x2="330" y2="185" />
+            <line class="pi-bond" id="pi-3" x1="260" y1="175" x2="330" y2="175" />
+            <text class="atom carbon-chain" x="360" y="180">CH₂</text>
+
+            <line class="bond" id="ch-3" x1="0" y1="0" x2="0" y2="0" opacity="0" />
+            <line class="bond" id="cx-3" x1="0" y1="0" x2="0" y2="0" opacity="0" />
+
+            <line class="bond" id="hx-3" x1="230" y1="40" x2="280" y2="40" opacity="0.2" stroke-dasharray="4" />
+            <text class="atom" id="h-3" x="210" y="40" fill="#0275d8" font-size="20px">H</text>
+            <circle id="halo-3" cx="300" cy="40" r="15" fill="#d9534f" opacity="0" />
+            <text class="atom x-atom" id="x-3" x="300" y="40" fill="#d9534f" font-size="20px">Br</text>
+
+            <circle id="cbg-3" cx="0" cy="0" r="12" fill="white" opacity="0"/>
+            <text class="charge" id="cch-3" x="0" y="0" fill="#000" opacity="0">•</text>
+            <circle id="xbg-3" cx="0" cy="0" r="12" fill="white" opacity="0"/>
+            <text class="charge" id="xch-3" x="0" y="0" fill="#000" opacity="0">•</text>
+        </svg>
+        <div class="chem-specific-info" id="info-3"></div>
+    </div>
+</div>
+
+<script>
+    const slider = document.getElementById('progress');
+    const chemSelect = document.getElementById('chemical');
+
+    const chemData = {
+        'HCl': { 
+            atom: 'Cl', color: '#5cb85c', radius: 14, text: 'HCl',
+            info1: "<strong>HCl Kinetics:</strong> Chlorine's strong bond to Hydrogen means this reaction requires a bit more activation energy, but it strictly follows this stable carbocation path.",
+            info2: "<strong>Unfavorable:</strong> The primary carbocation is highly unstable. Because HCl requires significant energy to react anyway, it absolutely refuses to take this higher-energy path.",
+            info3: "<strong>Peroxide Failure:</strong> The H-Cl bond is simply too strong (431 kJ/mol). Peroxide radicals bounce off without breaking it. HCl ignores peroxides and defaults to Panel 1."
+        },
+        'HBr': { 
+            atom: 'Br', color: '#d9534f', radius: 18, text: 'HBr',
+            info1: "<strong>Standard Addition:</strong> With moderate bond strength, HBr easily breaks apart to form the stable secondary carbocation, making this the standard major product.",
+            info2: "<strong>Unfavorable:</strong> Even with a moderate bond, the primary carbocation is too unstable. Nature takes the path of least resistance, so this ionic path virtually never happens.",
+            info3: "<strong>The 'Goldilocks' Chemical:</strong> Perfect bond strength! Peroxides easily break H-Br into radicals, and the Br• radical is highly reactive, successfully forcing this Anti-Markovnikov addition."
+        },
+        'HI':  { 
+            atom: 'I',  color: '#6f42c1', radius: 24, text: 'HI',
+            info1: "<strong>Fast Addition:</strong> The H-I bond is very long and weak. HI reacts the fastest of all three chemicals, heavily favoring this stable Markovnikov pathway.",
+            info2: "<strong>Unfavorable:</strong> Even though HI reacts quickly, the primary carbocation is still a massive energy barrier. This pathway is rigorously avoided.",
+            info3: "<strong>Lazy Radicals:</strong> Peroxides easily break the weak H-I bond, but the resulting Iodine radicals (I•) are massive and unreactive. They just form I₂ gas instead of attacking the alkene."
+        }
+    };
+
+    // Base coordinates
+    const startY = 40, endY = 180;
+    const cMidX = 230, cEndX = 360;
+    const hStartX = 210, xStartX = 300;
+
+    function update() {
+        const p = parseInt(slider.value);
+        const chem = chemData[chemSelect.value];
+        const isHBr = chemSelect.value === 'HBr';
+
+        // Update Specific Chemical Info Boxes
+        document.getElementById('info-1').innerHTML = chem.info1;
+        document.getElementById('info-2').innerHTML = chem.info2;
+        document.getElementById('info-3').innerHTML = chem.info3;
+
+        // Update Chemical Aesthetics in all SVGs
+        for(let i=1; i<=3; i++) {
+            const xAtom = document.getElementById(`x-${i}`);
+            const xHalo = document.getElementById(`halo-${i}`);
+            xAtom.textContent = chem.atom;
+            xAtom.setAttribute('fill', chem.color);
+            xHalo.setAttribute('fill', chem.color);
+            xHalo.setAttribute('r', chem.radius);
+            xHalo.setAttribute('opacity', 0.15);
+        }
+
+        // --- TEXT UPDATES ---
+        const exp1 = document.getElementById('exp-1');
+        const exp2 = document.getElementById('exp-2');
+        const exp3 = document.getElementById('exp-3');
+        const badge3 = document.getElementById('badge-3');
+
+        if (isHBr) {
+            badge3.className = "status-badge status-stable";
+            badge3.textContent = "Works with HBr";
+            document.getElementById('info-3').style.borderLeftColor = "#28a745"; // Green indicator
+        } else {
+            badge3.className = "status-badge status-unstable";
+            badge3.textContent = "Fails in Reality";
+            document.getElementById('info-3').style.borderLeftColor = "#dc3545"; // Red indicator
+        }
+
+        if (p < 30) {
+            exp1.innerHTML = "Approach: " + chem.text + " nears the alkene.";
+            exp2.innerHTML = "Approach: " + chem.text + " nears the alkene.";
+            exp3.innerHTML = isHBr ? "Peroxides split HBr into separate radicals (•)." : `With ${chem.text}, peroxides fail. Animate theory below.`;
+            [exp1, exp2, exp3].forEach(el => { el.style.background = "#fff3cd"; el.style.borderLeft = "4px solid #ffc107"; });
+        } else if (p < 70) {
+            exp1.innerHTML = "<strong>Stable Intermediate:</strong> H attaches to the end. A stable <strong>Secondary Carbocation (+)</strong> forms.";
+            exp1.style.background = "#d4edda"; exp1.style.borderLeft = "4px solid #28a745";
+            
+            exp2.innerHTML = "<strong>Unstable Intermediate:</strong> H attaches to the middle. A highly unstable <strong>Primary Carbocation (+)</strong> forms.";
+            exp2.style.background = "#f8d7da"; exp2.style.borderLeft = "4px solid #dc3545";
+            
+            exp3.innerHTML = isHBr ? "<strong>Stable Radical:</strong> Bromine (•) attacks the end. A stable <strong>Secondary Radical (•)</strong> forms." : "<em>Theory:</em> Halogen attacks end, forming radical (Unfavorable for " + chem.text + ").";
+            exp3.style.background = isHBr ? "#cce5ff" : "#e2e3e5"; exp3.style.borderLeft = isHBr ? "4px solid #004085" : "4px solid #6c757d";
+        } else {
+            exp1.innerHTML = `<strong>Final:</strong> ${chem.atom}⁻ attaches to the middle. <strong>Markovnikov Product</strong>.`;
+            exp2.innerHTML = `<strong>Final:</strong> ${chem.atom}⁻ attaches to the end. <strong>Anti-Markovnikov Product</strong>.`;
+            exp3.innerHTML = isHBr ? `<strong>Final:</strong> Carbon radical grabs H. <strong>Anti-Markovnikov Product</strong>.` : `<em>Final:</em> Reaction aborts in reality.`;
+        }
+
+        // --- ANIMATION LOGIC ---
+        function animatePanel(id, panelType) {
+            const hAtom = document.getElementById(`h-${id}`);
+            const xAtom = document.getElementById(`x-${id}`);
+            const xHalo = document.getElementById(`halo-${id}`);
+            const hxBond = document.getElementById(`hx-${id}`);
+            const piBond = document.getElementById(`pi-${id}`);
+            const chBond = document.getElementById(`ch-${id}`);
+            const cxBond = document.getElementById(`cx-${id}`);
+            const cCharge = document.getElementById(`cch-${id}`);
+            const cBg = document.getElementById(`cbg-${id}`);
+            const xCharge = document.getElementById(`xch-${id}`);
+            const xBg = document.getElementById(`xbg-${id}`);
+
+            let hX = hStartX, hY = startY;
+            let xX = xStartX, xY = startY;
+
+            // Phase 1: Approach (0-30%)
+            if (p <= 30) {
+                const ratio = p / 30;
+                hY = startY + (40 * ratio);
+                xY = startY + (40 * ratio);
+                if (panelType !== 3) {
+                    hxBond.setAttribute('y1', hY);
+                    hxBond.setAttribute('y2', xY);
+                    hxBond.setAttribute('opacity', 1);
+                }
+                piBond.setAttribute('opacity', 1);
+                chBond.setAttribute('opacity', 0);
+                cxBond.setAttribute('opacity', 0);
+                cCharge.setAttribute('opacity', 0); cBg.setAttribute('opacity', 0);
+                xCharge.setAttribute('opacity', 0); xBg.setAttribute('opacity', 0);
+            }
+            
+            // Phase 2: First Atom Attaches (30-60%)
+            if (p > 30) {
+                const ratio = Math.min((p - 30) / 30, 1);
+                if (panelType !== 3) hxBond.setAttribute('opacity', 1 - ratio);
+                piBond.setAttribute('opacity', 1 - ratio);
+
+                if (panelType === 1) { // Markov (H to End)
+                    hX = hStartX + ((cEndX - hStartX) * ratio);
+                    hY = (startY + 40) + ((140 - (startY + 40)) * ratio);
+                    xX = xStartX + (20 * ratio); xY = (startY + 40) - (10 * ratio); 
+
+                    chBond.setAttribute('opacity', ratio);
+                    chBond.setAttribute('x1', cEndX); chBond.setAttribute('y1', endY);
+                    chBond.setAttribute('x2', hX); chBond.setAttribute('y2', hY + 10);
+                } else if (panelType === 2) { // Anti-Ionic (H to Mid)
+                    hX = hStartX + ((cMidX - hStartX) * ratio);
+                    hY = (startY + 40) + ((140 - (startY + 40)) * ratio);
+                    xX = xStartX + (20 * ratio); xY = (startY + 40) - (10 * ratio); 
+
+                    chBond.setAttribute('opacity', ratio);
+                    chBond.setAttribute('x1', cMidX); chBond.setAttribute('y1', endY);
+                    chBond.setAttribute('x2', hX); chBond.setAttribute('y2', hY + 10);
+                } else if (panelType === 3) { // Radical (X to End)
+                    xX = xStartX + ((cEndX - xStartX) * ratio);
+                    xY = (startY + 40) + ((140 - (startY + 40)) * ratio);
+                    hX = hStartX - (20 * ratio); hY = (startY + 40) - (10 * ratio); 
+
+                    cxBond.setAttribute('opacity', ratio);
+                    cxBond.setAttribute('x1', cEndX); cxBond.setAttribute('y1', endY);
+                    cxBond.setAttribute('x2', xX); cxBond.setAttribute('y2', xY + 15);
+                }
+
+                if (ratio === 1) {
+                    let intX = (panelType === 2) ? cEndX + 15 : cMidX + 15; 
+                    cCharge.setAttribute('x', intX); cCharge.setAttribute('y', 155);
+                    cBg.setAttribute('cx', intX); cBg.setAttribute('cy', 155);
+                    cCharge.setAttribute('opacity', 1); cBg.setAttribute('opacity', 1);
+
+                    let driftX = (panelType === 3) ? hX - 15 : xX + 15;
+                    let driftY = (panelType === 3) ? hY - 15 : xY - 15;
+                    xCharge.setAttribute('x', driftX); xCharge.setAttribute('y', driftY);
+                    xBg.setAttribute('cx', driftX); xBg.setAttribute('cy', driftY);
+                    xCharge.setAttribute('opacity', 1); xBg.setAttribute('opacity', 1);
+                }
+            }
+
+            // Phase 3: Second Atom Attaches (60-100%)
+            if (p > 60) {
+                const ratio = (p - 60) / 40;
+                
+                if (panelType === 1) { // X to Mid
+                    const sXX = xStartX + 20, sXY = (startY + 40) - 10;
+                    xX = sXX + ((cMidX - sXX) * ratio);
+                    xY = sXY + ((140 - sXY) * ratio);
+                    cxBond.setAttribute('opacity', ratio);
+                    cxBond.setAttribute('x1', cMidX); cxBond.setAttribute('y1', endY);
+                    cxBond.setAttribute('x2', xX); cxBond.setAttribute('y2', xY + 15);
+                    hX = cEndX; hY = 140;
+                } else if (panelType === 2) { // X to End
+                    const sXX = xStartX + 20, sXY = (startY + 40) - 10;
+                    xX = sXX + ((cEndX - sXX) * ratio);
+                    xY = sXY + ((140 - sXY) * ratio);
+                    cxBond.setAttribute('opacity', ratio);
+                    cxBond.setAttribute('x1', cEndX); cxBond.setAttribute('y1', endY);
+                    cxBond.setAttribute('x2', xX); cxBond.setAttribute('y2', xY + 15);
+                    hX = cMidX; hY = 140;
+                } else if (panelType === 3) { // H to Mid
+                    const sHX = hStartX - 20, sHY = (startY + 40) - 10;
+                    hX = sHX + ((cMidX - sHX) * ratio);
+                    hY = sHY + ((140 - sHY) * ratio);
+                    chBond.setAttribute('opacity', ratio);
+                    chBond.setAttribute('x1', cMidX); chBond.setAttribute('y1', endY);
+                    chBond.setAttribute('x2', hX); chBond.setAttribute('y2', hY + 10);
+                    xX = cEndX; xY = 140;
+                }
+
+                cCharge.setAttribute('opacity', 1 - ratio); cBg.setAttribute('opacity', 1 - ratio);
+                xCharge.setAttribute('opacity', 1 - ratio); xBg.setAttribute('opacity', 1 - ratio);
+            }
+
+            hAtom.setAttribute('x', hX); hAtom.setAttribute('y', hY);
+            xAtom.setAttribute('x', xX); xAtom.setAttribute('y', xY);
+            xHalo.setAttribute('cx', xX); xHalo.setAttribute('cy', xY);
+        }
+
+        animatePanel(1, 1);
+        animatePanel(2, 2);
+        animatePanel(3, 3);
+    }
+
+    slider.addEventListener('input', update);
+    chemSelect.addEventListener('change', () => { slider.value = 0; update(); });
+    update();
+</script>
+</body>
+</html>

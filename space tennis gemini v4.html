@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Tennis Physics Visualizer</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 20px; background: #1a1a2e; color: #fff; }
+        .container { max-width: 900px; margin: 0 auto; }
+        canvas { background: #16213e; border: 2px solid #0f3460; border-radius: 8px; margin-bottom: 10px; display: block; width: 100%; }
+        .panel { padding: 15px; background: #0f3460; border-radius: 8px; margin-bottom: 20px; }
+        .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        label { display: block; font-size: 0.9em; margin-bottom: 5px; color: #e94560; font-weight: bold; }
+        input[type="range"] { width: 100%; }
+        .value-display { float: right; color: #fff; font-weight: normal; }
+        select, button { padding: 10px; background: #e94560; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; width: 100%; font-weight: bold; }
+        select:hover, button:hover { background: #d03b55; }
+        button#playBtn { background: #4caf50; font-size: 1.1em; }
+        button#playBtn:hover { background: #45a049; }
+        h2 { margin-top: 0; font-size: 1.2em; color: #e94560; display: flex; justify-content: space-between; }
+        .shot-controls { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px; align-items: flex-end; }
+        .info-text { font-size: 0.85em; color: #a2a8d3; font-weight: normal; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Interplanetary Tennis Simulator</h1>
+    
+    <div class="shot-controls">
+        <div>
+            <label>Shot Type</label>
+            <select id="shotType">
+                <option value="serve">Flat Serve</option>
+                <option value="flat">Flat Groundstroke</option>
+                <option value="topspin">Heavy Topspin</option>
+                <option value="slice">Defensive Slice</option>
+            </select>
+        </div>
+        <div>
+            <label>Speed Multiplier <span id="speedMultVal" class="value-display">1.0x</span></label>
+            <input type="range" id="speedMult" min="0.5" max="2.0" step="0.1" value="1.0">
+            <div class="info-text" id="speedReadout">-- m/s (-- mph)</div>
+        </div>
+        <div>
+            <label>Launch Angle <span id="angleVal" class="value-display">0°</span></label>
+            <input type="range" id="angle" min="-25" max="25" step="1" value="0">
+            <div class="info-text">Offset from base angle</div>
+        </div>
+        <div>
+            <button id="playBtn">Play Shot</button>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Earth (Standard) <span class="info-text">Court Half: 11.89m</span></h2>
+        <canvas id="earthCanvas" width="900" height="250"></canvas>
+    </div>
+
+    <div class="panel">
+        <h2>Custom Space Environment <span class="info-text" id="spaceCourtText">Court Half: 11.89m</span></h2>
+        <canvas id="spaceCanvas" width="900" height="250"></canvas>
+        <div class="controls">
+            <div>
+                <label>Gravity (m/s²) <span class="info-text">(Earth: 9.81)</span> <span id="gravityVal" class="value-display">9.8</span></label>
+                <input type="range" id="gravity" min="0.5" max="25" step="0.1" value="9.81">
+            </div>
+            <div>
+                <label>Air Density (kg/m³) <span class="info-text">(Earth: 1.23)</span> <span id="densityVal" class="value-display">1.23</span></label>
+                <input type="range" id="density" min="0" max="3" step="0.01" value="1.225">
+            </div>
+            <div>
+                <label>Ball Bounce (COR) <span class="info-text">(Earth: 0.73)</span> <span id="corVal" class="value-display">0.73</span></label>
+                <input type="range" id="cor" min="0.4" max="1" step="0.01" value="0.73">
+            </div>
+            <div>
+                <label>Court Length Multiplier <span id="courtMultVal" class="value-display">1.0x</span></label>
+                <input type="range" id="courtMult" min="0.5" max="5" step="0.1" value="1.0">
+            </div>
+            <div>
+                <label>Ball Mass Multiplier <span id="massMultVal" class="value-display">1.0x</span></label>
+                <input type="range" id="massMult" min="0.1" max="5.0" step="0.1" value="1.0">
+            </div>
+            <div>
+                <label>Ball Size Multiplier <span id="sizeMultVal" class="value-display">1.0x</span></label>
+                <input type="range" id="sizeMult" min="0.1" max="5.0" step="0.1" value="1.0">
+            </div>
+            <div style="grid-column: 1 / -1;">
+                <label>Receiver Position <span id="receiverPosVal" class="value-display">Baseline</span></label>
+                <input type="range" id="receiverPos" min="0.54" max="1.5" step="0.01" value="1.0">
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const EARTH_MASS = 0.058; 
+    const EARTH_RADIUS = 0.033; 
+    const CD = 0.55; 
+    const CM = 1.2; 
+    const CENTER_X = 450;
+    const GROUND_Y = 220;
+
+    const SHOTS = {
+        // Raised serve height significantly to represent true overhead extension
+        serve: { y: 3.2, vx: 48, vy: -4, spin: 50, isServe: true }, 
+        flat: { y: 1.0, vx: 27, vy: 5.5, spin: 0, isServe: false },
+        topspin: { y: 0.8, vx: 29, vy: 7.5, spin: 400, isServe: false }, 
+        slice: { y: 1.2, vx: 21, vy: 3.5, spin: -150, isServe: false }  
+    };
+
+    let globalPPM = 15; 
+
+    class Simulation {
+        constructor(canvasId, isEarth) {
+            this.canvas = document.getElementById(canvasId);
+            this.ctx = this.canvas.getContext('2d');
+            this.isEarth = isEarth;
+            
+            this.g = 9.81;
+            this.rho = 1.225;
+            this.courtLengthMult = 1.0;
+            this.cor = 0.73;
+            this.mass = EARTH_MASS;
+            this.radius = EARTH_RADIUS;
+            this.area = Math.PI * this.radius * this.radius;
+            this.sizeVisualMult = 1.0;
+            
+            this.playing = false;
+            this.resetBall(false);
+        }
+
+        syncState() {
+            if (!this.isEarth) {
+                this.g = parseFloat(document.getElementById('gravity').value);
+                this.rho = parseFloat(document.getElementById('density').value);
+                this.courtLengthMult = parseFloat(document.getElementById('courtMult').value);
+                this.cor = parseFloat(document.getElementById('cor').value);
+                
+                const massMult = parseFloat(document.getElementById('massMult').value);
+                this.sizeVisualMult = parseFloat(document.getElementById('sizeMult').value);
+                
+                this.mass = EARTH_MASS * massMult;
+                this.radius = EARTH_RADIUS * this.sizeVisualMult;
+                this.area = Math.PI * this.radius * this.radius;
+            } else {
+                this.mass = EARTH_MASS;
+                this.radius = EARTH_RADIUS;
+                this.area = Math.PI * this.radius * this.radius;
+                this.sizeVisualMult = 1.0;
+            }
+
+            const recvRatio = parseFloat(document.getElementById('receiverPos').value);
+            this.receiverDist = recvRatio * 11.89 * this.courtLengthMult;
+        }
+
+        resetBall(playState) {
+            this.syncState();
+            const shot = SHOTS[document.getElementById('shotType').value];
+            const speedMult = parseFloat(document.getElementById('speedMult').value);
+            const angleOffset = parseFloat(document.getElementById('angle').value) * (Math.PI / 180);
+            
+            const courtLength = 11.89 * this.courtLengthMult;
+            this.x = -courtLength; 
+            this.y = shot.y;
+            this.spin = shot.spin;
+            this.isServe = shot.isServe;
+
+            let baseVx = shot.vx * speedMult;
+            let baseVy = shot.vy * speedMult;
+
+            let speed = Math.sqrt(baseVx * baseVx + baseVy * baseVy);
+            let currentAngle = Math.atan2(baseVy, baseVx);
+            let newAngle = currentAngle + angleOffset;
+
+            this.vx = speed * Math.cos(newAngle);
+            this.vy = speed * Math.sin(newAngle);
+            
+            this.path = [];
+            this.time = 0;
+            this.active = true;
+            this.playing = playState;
+        }
+
+        step(dt) {
+            if (!this.active || !this.playing) return;
+            
+            if (this.path.length === 0 || this.time % 0.05 < dt) {
+                this.path.push({x: this.x, y: this.y});
+            }
+
+            const v = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+            
+            const Fd = 0.5 * this.rho * v * v * CD * this.area;
+            const Fd_x = v === 0 ? 0 : -Fd * (this.vx / v);
+            const Fd_y = v === 0 ? 0 : -Fd * (this.vy / v);
+
+            const Fl = 0.5 * this.rho * this.area * this.radius * this.spin * v * CM;
+            const Fl_x = v === 0 ? 0 : -Fl * (this.vy / v); 
+            const Fl_y = v === 0 ? 0 : -Fl * (this.vx / v);
+
+            const ax = (Fd_x + Fl_x) / this.mass;
+            const ay = -this.g + (Fd_y + Fl_y) / this.mass;
+
+            this.vx += ax * dt;
+            this.vy += ay * dt;
+            
+            this.x += this.vx * dt;
+            this.y += this.vy * dt;
+
+            if (this.y < this.radius) {
+                this.y = this.radius;
+                this.vy = -this.vy * this.cor;
+                this.vx = this.vx * 0.8; 
+                this.spin = this.spin * 0.5; 
+                
+                if (Math.abs(this.vy) < 0.5 && Math.abs(this.vx) < 0.5) {
+                    this.active = false;
+                }
+            }
+
+            if (this.x > -0.1 && this.x < 0.1 && this.y < 0.914) {
+                this.vx = -this.vx * 0.2;
+                this.x = -0.11;
+            }
+
+            this.time += dt;
+        }
+
+        draw() {
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            
+            const courtLength = 11.89 * this.courtLengthMult;
+            const svcLine = 6.4 * this.courtLengthMult;
+
+            this.ctx.fillStyle = '#1a1a2e';
+            this.ctx.fillRect(0, GROUND_Y, this.canvas.width, this.canvas.height - GROUND_Y);
+
+            this.ctx.strokeStyle = '#fff';
+            this.ctx.lineWidth = 2;
+            this.ctx.setLineDash([]);
+            
+            const drawLine = (xPos, height) => {
+                const px = CENTER_X + (xPos * globalPPM);
+                this.ctx.beginPath();
+                this.ctx.moveTo(px, GROUND_Y);
+                this.ctx.lineTo(px, GROUND_Y - height);
+                this.ctx.stroke();
+            };
+
+            drawLine(-courtLength, 5); 
+            drawLine(-svcLine, 5); 
+            drawLine(svcLine, 5); 
+            drawLine(courtLength, 5); 
+
+            // Draw Net
+            const netX = CENTER_X;
+            const netHeight = 0.914 * globalPPM;
+            
+            this.ctx.fillStyle = '#fff';
+            this.ctx.fillRect(netX - 2, GROUND_Y - netHeight, 4, netHeight);
+            
+            this.ctx.strokeStyle = '#e94560';
+            this.ctx.lineWidth = 2;
+            this.ctx.setLineDash([3, 3]);
+            this.ctx.beginPath();
+            this.ctx.moveTo(netX, GROUND_Y);
+            this.ctx.lineTo(netX, GROUND_Y - netHeight);
+            this.ctx.stroke();
+            this.ctx.setLineDash([]); 
+
+            // Draw Players (Passing launch height to ensure arms look correct)
+            this.drawStickman(CENTER_X - (courtLength * globalPPM) - 15, GROUND_Y, this.isServe, this.y * globalPPM);
+            this.drawStickman(CENTER_X + (this.receiverDist * globalPPM), GROUND_Y, false, 0);
+
+            // Draw Path
+            this.ctx.beginPath();
+            this.ctx.strokeStyle = 'rgba(233, 69, 96, 0.5)';
+            this.ctx.lineWidth = 2;
+            this.path.forEach((p, i) => {
+                const px = CENTER_X + (p.x * globalPPM);
+                const py = GROUND_Y - (p.y * globalPPM);
+                if (i === 0) this.ctx.moveTo(px, py);
+                else this.ctx.lineTo(px, py);
+            });
+            this.ctx.stroke();
+
+            // Draw Ball
+            const bx = CENTER_X + (this.x * globalPPM);
+            const by = GROUND_Y - (this.y * globalPPM);
+            this.ctx.beginPath();
+            // Scale visual radius based on user modifier
+            this.ctx.arc(bx, by, 4 * this.sizeVisualMult, 0, Math.PI * 2);
+            this.ctx.fillStyle = '#eafc40';
+            this.ctx.fill();
+            this.ctx.stroke();
+        }
+
+        drawStickman(x, y, isServingArm, launchHeightPixels) {
+            const c = this.ctx;
+            c.strokeStyle = '#fff';
+            c.lineWidth = 2;
+            c.beginPath();
+            c.arc(x, y - 40, 5, 0, Math.PI * 2); 
+            c.moveTo(x, y - 35); c.lineTo(x, y - 15); 
+            c.moveTo(x, y - 15); c.lineTo(x - 10, y); 
+            c.moveTo(x, y - 15); c.lineTo(x + 10, y); 
+            
+            if (isServingArm) {
+                // Point arm explicitly up to the 3.2m launch height
+                c.moveTo(x, y - 30); 
+                c.lineTo(x + 5, y - Math.min(launchHeightPixels - 5, 80)); 
+            } else {
+                c.moveTo(x, y - 30); c.lineTo(x + 15, y - 20); 
+            }
+            c.stroke();
+        }
+    }
+
+    const earthSim = new Simulation('earthCanvas', true);
+    const spaceSim = new Simulation('spaceCanvas', false);
+
+    function updateReadouts() {
+        const speedMult = parseFloat(document.getElementById('speedMult').value);
+        const shot = SHOTS[document.getElementById('shotType').value];
+        
+        const v_ms = Math.sqrt(Math.pow(shot.vx * speedMult, 2) + Math.pow(shot.vy * speedMult, 2));
+        const v_mph = v_ms * 2.23694;
+        document.getElementById('speedReadout').innerText = `${v_ms.toFixed(1)} m/s (${v_mph.toFixed(0)} mph)`;
+        
+        const spaceMult = parseFloat(document.getElementById('courtMult').value);
+        const maxMult = Math.max(1.0, spaceMult);
+        const maxCourtMeters = 11.89 * maxMult;
+        
+        document.getElementById('spaceCourtText').innerText = `Court Half: ${(11.89 * spaceMult).toFixed(2)}m`;
+        
+        globalPPM = 380 / maxCourtMeters;
+    }
+
+    function updateVisualsOnly() {
+        updateReadouts();
+        earthSim.resetBall(false);
+        spaceSim.resetBall(false);
+        earthSim.draw();
+        spaceSim.draw();
+    }
+
+    function triggerPlay() {
+        updateReadouts();
+        earthSim.resetBall(true);
+        spaceSim.resetBall(true);
+    }
+
+    const inputs = ['shotType', 'speedMult', 'angle', 'gravity', 'density', 'courtMult', 'receiverPos', 'cor', 'massMult', 'sizeMult'];
+    inputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', (e) => {
+                const valSpan = document.getElementById(id + 'Val');
+                if (valSpan) {
+                    if (['courtMult', 'speedMult', 'massMult', 'sizeMult'].includes(id)) {
+                        valSpan.textContent = parseFloat(e.target.value).toFixed(1) + 'x';
+                    } else if (id === 'angle') {
+                        let prefix = e.target.value > 0 ? '+' : '';
+                        valSpan.textContent = prefix + e.target.value + '°';
+                    } else if (id === 'receiverPos') {
+                        let val = parseFloat(e.target.value);
+                        if (val < 0.7) valSpan.textContent = "Service Line";
+                        else if (val < 1.2) valSpan.textContent = "Baseline";
+                        else valSpan.textContent = "Deep Backcourt";
+                    } else {
+                        valSpan.textContent = e.target.value;
+                    }
+                }
+                updateVisualsOnly();
+            });
+        }
+    });
+
+    document.getElementById('playBtn').addEventListener('click', triggerPlay);
+
+    // Initial setup
+    updateVisualsOnly(); 
+
+    let lastTime = performance.now();
+    function loop(time) {
+        let dt = (time - lastTime) / 1000;
+        if (dt > 0.05) dt = 0.05; 
+        lastTime = time;
+
+        const steps = 5;
+        const subDt = dt / steps;
+        for (let i = 0; i < steps; i++) {
+            earthSim.step(subDt);
+            spaceSim.step(subDt);
+        }
+
+        // Only redraw continuously if physics are actively running
+        if (earthSim.playing || spaceSim.playing) {
+            earthSim.draw();
+            spaceSim.draw();
+        }
+
+        requestAnimationFrame(loop);
+    }
+
+    requestAnimationFrame(loop);
+
+</script>
+</body>
+</html>

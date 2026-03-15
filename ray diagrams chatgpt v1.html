@@ -1,0 +1,2081 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Optics Ray-Tracing Quiz</title>
+  <style>
+    :root{
+      --bg:#121318; --panel:#1c1e26; --ink:#e9e9ef; --muted:#b8bac7;
+      --good:#47d16c; --bad:#ff5b5b; --accent:#5aa7ff; --glass:rgba(90,160,255,.22);
+      --water:rgba(0,140,255,.18); --line:#8c93a8; --mirror:#63f3ff; --warn:#ffd452;
+    }
+    body{margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--ink);}
+    .wrap{max-width:1050px; margin:0 auto; padding:18px;}
+    .panel{background:var(--panel); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px 14px 10px; box-shadow: 0 10px 26px rgba(0,0,0,.35);}
+    h1{font-size:18px; margin:0 0 10px; color:var(--accent); font-weight:700;}
+    .top{display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;}
+    .left{flex: 1 1 520px;}
+    .right{flex: 0 0 320px;}
+    #prompt{font-size:15px; line-height:1.35; color:var(--ink); min-height:72px; white-space:pre-line;}
+    #meta{margin-top:8px; display:flex; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--muted);}
+    .pill{border:1px solid rgba(255,255,255,.12); border-radius:999px; padding:6px 10px; background:rgba(255,255,255,.04);}
+    #feedback{margin-top:10px; min-height:24px; font-size:14px; font-weight:650;}
+    canvas{width:100%; height:auto; border-radius:10px; background:#0b0c10; border:1px solid rgba(255,255,255,.10); cursor:crosshair;}
+    .btns{margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;}
+    button{
+      background:var(--accent); color:#07111f; border:0; border-radius:10px;
+      padding:10px 14px; font-weight:800; cursor:pointer;
+    }
+    button.secondary{background:rgba(255,255,255,.10); color:var(--ink); border:1px solid rgba(255,255,255,.14);}
+    button:active{transform: translateY(1px);}
+    .hint{font-size:12px; color:var(--muted); margin-top:8px; line-height:1.35;}
+    .small{font-size:12px;}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <h1>Interactive Optics: Ray Path, Normals, Angles (Randomised)</h1>
+
+    <div class="top">
+      <div class="left">
+        <div id="prompt">Loading…</div>
+        <div id="meta">
+          <div class="pill" id="scorePill">Score: 0 / 0</div>
+          <div class="pill" id="stepPill">Step: –</div>
+          <div class="pill" id="modePill">Mode: –</div>
+        </div>
+        <div id="feedback"></div>
+        <div class="btns">
+          <button id="nextBtn">Next</button>
+          <button class="secondary" id="skipBtn">Skip challenge</button>
+        </div>
+        <div class="hint" id="hint">
+          How to answer:
+          - Path questions: click the lettered ray (A–H).
+          - Draw-normal questions: click the red dot, drag a line (it should pass through the surface), release.
+          - Angle-ID questions: click the labelled angle marker (letters are shuffled).
+          After you answer, the correct ray + normal are drawn in.
+        </div>
+      </div>
+
+      <div class="right">
+        <canvas id="cv" width="900" height="560"></canvas>
+        <div class="hint small">
+          Indices used (editable in code): air 1.00, water 1.33, glass 1.50.
+          Critical angles are shown only when they exist (n₁>n₂) and are relevant to the ray’s direction.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================
+   Core maths (2D vectors)
+========================= */
+const TAU = Math.PI * 2;
+const EPS = 1e-9;
+
+const v = (x,y)=>({x,y});
+const add = (a,b)=>v(a.x+b.x,a.y+b.y);
+const sub = (a,b)=>v(a.x-b.x,a.y-b.y);
+const mul = (a,s)=>v(a.x*s,a.y*s);
+const dot = (a,b)=>a.x*b.x + a.y*b.y;
+const cross = (a,b)=>a.x*b.y - a.y*b.x;
+const len = a=>Math.hypot(a.x,a.y);
+const norm = a=>{ const L=len(a)||1; return v(a.x/L,a.y/L); };
+const rot = (a,rad)=>v(a.x*Math.cos(rad)-a.y*Math.sin(rad), a.x*Math.sin(rad)+a.y*Math.cos(rad));
+const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
+const rad = d=>d*Math.PI/180;
+const deg = r=>r*180/Math.PI;
+const unitFrom = ang=>v(Math.cos(ang),Math.sin(ang));
+
+function angleOf(vec){ return Math.atan2(vec.y, vec.x); }
+function angDiffDeg(a,b){
+  // smallest difference in degrees, modulo 360
+  let d = ((a-b+540)%360)-180;
+  return Math.abs(d);
+}
+function fmt(n,dp=1){ return Number(n).toFixed(dp); }
+
+function criticalAngleDeg(n1,n2){
+  if (n1 <= n2) return null;
+  return deg(Math.asin(clamp(n2/n1, -1, 1)));
+}
+
+/* Reflection across a normal line (normal direction matters only as a line) */
+function reflectDir(D, Nline){
+  const N = norm(Nline);
+  // reflection across line with normal N:
+  // R = D - 2(D·N)N
+  return norm(sub(D, mul(N, 2*dot(D,N))));
+}
+
+/* Vector Snell refraction.
+   Ninc is the normal direction pointing into the incident medium (as a direction).
+   Returns null if TIR. */
+function refractDir(D, Ninc, nInc, nTrans){
+  const I = norm(D);
+  let N = norm(Ninc);
+  let cosi = clamp(dot(I, N), -1, 1); // I·N
+  // We want cos(theta_i) = -I·N_surface_out. Here N points into incident medium,
+  // so cosi should be positive when I points toward the boundary.
+  // If cosi is negative, flip N.
+  if (cosi < 0){
+    N = mul(N, -1);
+    cosi = -cosi;
+  }
+  const eta = nInc / nTrans;
+  const k = 1 - eta*eta*(1 - cosi*cosi);
+  if (k < -1e-12) return null; // TIR
+  const cost = Math.sqrt(Math.max(0, k));
+  // T = eta*I - (eta*cosi - cost)*N
+  const T = sub(mul(I, eta), mul(N, (eta*cosi - cost)));
+  return norm(T);
+}
+
+/* =========================
+   Drawing helpers
+========================= */
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+function clear(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+}
+
+function drawArrowLine(p1, p2, color="red", w=3){
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = w;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(p1.x,p1.y);
+  ctx.lineTo(p2.x,p2.y);
+  ctx.stroke();
+
+  // arrowhead at midpoint
+  const mid = v((p1.x+p2.x)/2, (p1.y+p2.y)/2);
+  const a = Math.atan2(p2.y-p1.y, p2.x-p1.x);
+  ctx.translate(mid.x, mid.y);
+  ctx.rotate(a);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(8,0);
+  ctx.lineTo(-10,-7);
+  ctx.lineTo(-10,7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawDashedLineThrough(p, dir, halfLen=160, color="#8c93a8", w=2){
+  const d = norm(dir);
+  const a = sub(p, mul(d, halfLen));
+  const b = add(p, mul(d, halfLen));
+  ctx.save();
+  ctx.setLineDash([8,8]);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = w;
+  ctx.beginPath();
+  ctx.moveTo(a.x,a.y);
+  ctx.lineTo(b.x,b.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawPoint(p, r=5, color="red"){
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(p.x,p.y,r,0,TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawRegionRect(x,y,w,h, fill){
+  ctx.save();
+  ctx.fillStyle = fill;
+  ctx.fillRect(x,y,w,h);
+  ctx.restore();
+}
+
+function drawRect(x,y,w,h, fill, stroke="#6c7aa8"){
+  ctx.save();
+  ctx.fillStyle = fill;
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 2;
+  ctx.fillRect(x,y,w,h);
+  ctx.strokeRect(x,y,w,h);
+  ctx.restore();
+}
+
+function drawPoly(pts, fill, stroke="#6c7aa8"){
+  ctx.save();
+  ctx.fillStyle = fill;
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawCircleArc(center, R, a0, a1, fill=null, stroke="#6c7aa8"){
+  ctx.save();
+  if (fill){
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.moveTo(center.x, center.y);
+    ctx.arc(center.x, center.y, R, a0, a1, false);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, R, a0, a1, false);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawSurfaceLine(p, dir, len=700, color="#63f3ff", w=4){
+  const t = norm(dir);
+  const a = sub(p, mul(t, len/2));
+  const b = add(p, mul(t, len/2));
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = w;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(a.x,a.y);
+  ctx.lineTo(b.x,b.y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawLabelMarker(p, text, color="#ffd452"){
+  ctx.save();
+  ctx.fillStyle = "rgba(255,212,82,.18)";
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(p.x,p.y,16,0,TAU);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 15px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, p.x, p.y+0.5);
+  ctx.restore();
+}
+
+/* =========================
+   UI state
+========================= */
+const promptEl = document.getElementById('prompt');
+const feedbackEl = document.getElementById('feedback');
+const scorePill = document.getElementById('scorePill');
+const stepPill = document.getElementById('stepPill');
+const modePill = document.getElementById('modePill');
+const nextBtn = document.getElementById('nextBtn');
+const skipBtn = document.getElementById('skipBtn');
+
+const N_AIR = 1.00;
+const N_WATER = 1.33;
+const N_GLASS = 1.50;
+
+let scoreCorrect = 0;
+let scoreTotal = 0;
+
+let challenge = null;       // {name, promptLines, draw, steps[]}
+let stepIndex = 0;
+let phase = "question";     // "question" | "revealed"
+let clickable = [];         // clickable targets for current step
+let dragging = null;        // {kind, p0, p1}
+let recentNames = [];       // avoid repeats
+
+function setFeedback(text, good=null){
+  feedbackEl.textContent = text || "";
+  if (good === true) feedbackEl.style.color = "var(--good)";
+  else if (good === false) feedbackEl.style.color = "var(--bad)";
+  else feedbackEl.style.color = "var(--ink)";
+}
+
+function updatePills(){
+  scorePill.textContent = `Score: ${scoreCorrect} / ${scoreTotal}`;
+  if (!challenge){
+    stepPill.textContent = "Step: –";
+    modePill.textContent = "Mode: –";
+    return;
+  }
+  const s = challenge.steps[stepIndex];
+  stepPill.textContent = `Step: ${stepIndex+1} / ${challenge.steps.length}`;
+  modePill.textContent = `Mode: ${s.type}`;
+}
+
+/* =========================
+   Option generation
+========================= */
+const LABELS = "ABCDEFGH".split("");
+
+function uniqueAnglesDeg(angles, minSep=10){
+  const out = [];
+  for (const a of angles){
+    let ok = true;
+    for (const b of out){
+      if (angDiffDeg(a,b) < minSep) { ok=false; break; }
+    }
+    if (ok) out.push(((a%360)+360)%360);
+  }
+  return out;
+}
+
+function buildChoiceTargets(P, anglesDeg, correctAngleDeg){
+  // place markers at radius so they're clickable
+  const r = 155;
+  const targets = [];
+  const used = uniqueAnglesDeg(anglesDeg, 10).slice(0,8);
+
+  // if correct missing (because of de-dup), force it in
+  if (!used.some(a=>angDiffDeg(a, correctAngleDeg)<1)){
+    used[0] = correctAngleDeg;
+  }
+
+  // shuffle but keep a stable mapping for labels
+  const shuffled = used.slice().sort(()=>Math.random()-0.5);
+  const correctIdx = shuffled.findIndex(a=>angDiffDeg(a, correctAngleDeg)<1.2);
+  // if drift, force
+  if (correctIdx < 0) shuffled[0] = correctAngleDeg;
+
+  for (let i=0;i<Math.min(8, shuffled.length);i++){
+    const a = rad(shuffled[i]);
+    const end = add(P, mul(unitFrom(a), r));
+    targets.push({
+      kind: "rayChoice",
+      label: LABELS[i],
+      angleDeg: ((shuffled[i]%360)+360)%360,
+      end,
+      isCorrect: angDiffDeg(shuffled[i], correctAngleDeg) < 1.2
+    });
+  }
+  return targets;
+}
+
+function commonDistractors(correctDeg, incDeg, reflDeg, tangDeg){
+  // Build a pool: correct, straight, reflection, tangent, plus nearby offsets
+  const pool = [];
+  pool.push(correctDeg);
+  pool.push(incDeg);
+  pool.push(reflDeg);
+  pool.push(tangDeg);
+
+  // "bend wrong way" / wrong side: mirror correct across normal line (approx)
+  pool.push((2*reflDeg - correctDeg + 3600)%360);
+
+  // add offsets near correct (but distinct)
+  for (const d of [18, 32, -22, -38]){
+    pool.push((correctDeg + d + 3600)%360);
+  }
+  // extra spread
+  pool.push((tangDeg + 25 + 3600)%360);
+  pool.push((tangDeg - 25 + 3600)%360);
+
+  return pool;
+}
+
+/* =========================
+   Angle labelling diagram
+========================= */
+function drawAngleArc(center, r, a0, a1, color="#ffd452"){
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, r, a0, a1, false);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function midAngle(a0,a1){
+  // handle wrap
+  let d = a1 - a0;
+  while (d < -Math.PI) d += TAU;
+  while (d > Math.PI) d -= TAU;
+  return a0 + d/2;
+}
+
+/* =========================
+   Challenge templates
+========================= */
+function template_flatInterface({from, nInc, nTrans, nameInc, nameTrans, includeCritical=false, iMode="random", orientation="horizontal"}){
+  // A single boundary interaction: choose outgoing ray.
+  // from: "above"|"below"|"left"|"right" (incident side)
+  // orientation: "horizontal"|"vertical"|"slanted"
+  const P = v(460, 280);
+  let surfDir, normalIntoIncident;
+  let regionA, regionB; // for drawing
+
+  if (orientation === "horizontal"){
+    surfDir = v(1,0);
+    // boundary line at y=P.y, incident normal depends on from
+    if (from === "above") normalIntoIncident = v(0,-1);
+    else if (from === "below") normalIntoIncident = v(0,1);
+    else normalIntoIncident = v(0,-1);
+
+    regionA = ()=>drawRegionRect(0,0,cv.width,P.y,"rgba(255,255,255,.02)");
+    regionB = ()=>drawRegionRect(0,P.y,cv.width,cv.height-P.y,"rgba(255,255,255,.02)");
+  } else if (orientation === "vertical"){
+    surfDir = v(0,1);
+    if (from === "left") normalIntoIncident = v(-1,0);
+    else if (from === "right") normalIntoIncident = v(1,0);
+    else normalIntoIncident = v(-1,0);
+    regionA = ()=>drawRegionRect(0,0,P.x,cv.height,"rgba(255,255,255,.02)");
+    regionB = ()=>drawRegionRect(P.x,0,cv.width-P.x,cv.height,"rgba(255,255,255,.02)");
+  } else {
+    // slanted surface through P
+    const ang = rad(-22 + Math.random()*44); // roughly within ±22°
+    surfDir = unitFrom(ang);
+    // normal is perpendicular to surface. Choose normalIntoIncident so ray comes from "upper-left-ish"
+    const n0 = rot(surfDir, -Math.PI/2);
+    // crude: if from==="above" pick normal with negative y
+    if (from === "above") normalIntoIncident = (n0.y < 0 ? n0 : mul(n0,-1));
+    else if (from === "below") normalIntoIncident = (n0.y > 0 ? n0 : mul(n0,-1));
+    else if (from === "left")  normalIntoIncident = (n0.x < 0 ? n0 : mul(n0,-1));
+    else if (from === "right") normalIntoIncident = (n0.x > 0 ? n0 : mul(n0,-1));
+    else normalIntoIncident = n0;
+    regionA = ()=>{};
+    regionB = ()=>{};
+  }
+
+  const c = criticalAngleDeg(nInc, nTrans);
+  let iDeg;
+  if (iMode === "less" && c!=null) iDeg = 10 + Math.random()*(Math.max(12, c-12));
+  else if (iMode === "equal" && c!=null) iDeg = c;
+  else if (iMode === "greater" && c!=null) iDeg = Math.min(80, c + 8 + Math.random()*28);
+  else iDeg = 12 + Math.random()*55;
+
+  // Incident direction: start from "normal incidence" direction (towards boundary),
+  // which is opposite the normalIntoIncident.
+  const base = mul(normalIntoIncident, -1);
+  const sign = Math.random()<0.5 ? -1 : 1;
+  const Dinc = norm(rot(base, sign*rad(iDeg)));
+
+  // Compute outgoing:
+  let Dout = refractDir(Dinc, normalIntoIncident, nInc, nTrans);
+  let outcome;
+  if (Dout === null){
+    outcome = "TIR";
+    Dout = reflectDir(Dinc, normalIntoIncident); // correct is reflection if TIR
+  } else {
+    outcome = (iMode==="equal" && c!=null) ? "CRITICAL" : "REFRACT";
+    // For exact critical, force tangent direction (more stable / pedagogically clear)
+    if (iMode==="equal" && c!=null){
+      const t = norm(surfDir);
+      // choose tangent closer to Dout
+      const t1 = t;
+      const t2 = mul(t,-1);
+      Dout = (dot(Dout,t1) > dot(Dout,t2)) ? t1 : t2;
+    }
+  }
+
+  const incAng = deg(angleOf(Dinc));
+  const outAng = deg(angleOf(Dout));
+  const reflAng = deg(angleOf(reflectDir(Dinc, normalIntoIncident)));
+  const tangAng = deg(angleOf(norm(surfDir)));
+
+  const pool = commonDistractors(outAng, incAng, reflAng, tangAng);
+  const targets = buildChoiceTargets(P, pool, outAng);
+
+  const promptLines = [];
+  promptLines.push(`Boundary: ${nameInc} (n=${fmt(nInc,2)}) → ${nameTrans} (n=${fmt(nTrans,2)})`);
+  if (includeCritical && c!=null) promptLines.push(`Critical angle c = ${fmt(c,1)}° (only relevant when going from higher n to lower n).`);
+  promptLines.push(`Angle of incidence i = ${fmt(iDeg,1)}°.`);
+  promptLines.push(`Choose the correct outgoing ray.`);
+
+  const step = {
+    type: "chooseRay",
+    P, Dinc, Dout,
+    normalLine: normalIntoIncident, // draw as dashed line through point
+    surfaceDir: surfDir,
+    targets,
+    correctLabel: targets.find(t=>t.isCorrect)?.label || "?",
+    explain: (()=>{
+      if (outcome==="TIR") return `Here i > c, so refraction is impossible. The ray reflects (i = r).`;
+      if (outcome==="CRITICAL") return `Here i = c, so the refracted ray runs along the boundary (r = 90°).`;
+      return `Refraction follows n₁ sin i = n₂ sin r (bends toward the normal for higher n, away for lower n).`;
+    })()
+  };
+
+  const draw = (reveal)=>{
+    clear();
+    // light regions
+    regionA(); regionB();
+
+    // surface
+    drawSurfaceLine(P, surfDir, 820, "#8aa0b8", 3);
+
+    // incident ray: draw from behind the point
+    const src = sub(P, mul(Dinc, 240));
+    drawArrowLine(src, P, "#ff4b4b", 3);
+
+    // candidates
+    clickable = [];
+    if (!reveal){
+      for (const t of targets){
+        const end = add(P, mul(unitFrom(rad(t.angleDeg)), 125));
+        drawArrowLine(P, end, "rgba(255,255,255,.25)", 2);
+        drawLabelMarker(t.end, t.label);
+        clickable.push({kind:"rayChoice", x:t.end.x, y:t.end.y, r:18, payload:t});
+      }
+    } else {
+      // show normal and correct outgoing ray
+      drawDashedLineThrough(P, normalIntoIncident, 170, "#8c93a8", 2);
+      const end = add(P, mul(Dout, 260));
+      drawArrowLine(P, end, "#ff4b4b", 3);
+    }
+
+    // mark point
+    drawPoint(P, 5, reveal ? "#47d16c" : "#ff4b4b");
+  };
+
+  return {
+    name: `flat:${nameInc}->${nameTrans}:${orientation}:${iMode}`,
+    promptLines,
+    steps:[step],
+    draw
+  };
+}
+
+function template_rectBlockPath(){
+  // Two refractions through a rectangular block (air -> glass -> air)
+  const xL=260, xR=640, yT=170, yB=390;
+  const P1 = v(xL, 210 + Math.random()*140);
+
+  const iDeg = 10 + Math.random()*55;
+  const sign = Math.random()<0.5 ? -1 : 1;
+  // Left face normal into incident air is (-1,0)
+  const Ninc1 = v(-1,0);
+  const base = v(1,0); // normal-incidence direction into block
+  const D0 = norm(rot(base, sign*rad(iDeg)));
+
+  // inside direction
+  let D1 = refractDir(D0, Ninc1, N_AIR, N_GLASS);
+  // reject steep paths that miss the right face within bounds
+  let tries=0;
+  while (tries<40){
+    const t = (xR - P1.x) / (D1.x || 1e-6);
+    const y2 = P1.y + t*D1.y;
+    if (t>10 && y2>yT+10 && y2<yB-10){
+      break;
+    }
+    tries++;
+    // resample
+    const i2 = 10 + Math.random()*55;
+    const s2 = Math.random()<0.5 ? -1 : 1;
+    const D0b = norm(rot(base, s2*rad(i2)));
+    D1 = refractDir(D0b, Ninc1, N_AIR, N_GLASS);
+  }
+
+  const tHit = (xR - P1.x) / D1.x;
+  const P2 = v(xR, P1.y + tHit*D1.y);
+
+  // Right face: normal into incident glass is (-1,0)
+  const Ninc2 = v(-1,0);
+  let D2 = refractDir(D1, Ninc2, N_GLASS, N_AIR);
+  // ensure not TIR (for this template)
+  if (D2 === null){
+    // fall back to a milder iDeg
+    D2 = norm(v(1,0));
+  }
+
+  // build step 1 choices
+  const P = P1;
+  const incAng1 = deg(angleOf(D0));
+  const outAng1 = deg(angleOf(D1));
+  const reflAng1 = deg(angleOf(reflectDir(D0, Ninc1)));
+  const tangAng1 = 90; // tangent to left face is vertical; use as a distractor
+  const pool1 = commonDistractors(outAng1, incAng1, reflAng1, tangAng1);
+  const targets1 = buildChoiceTargets(P1, pool1, outAng1);
+
+  // build step 2 choices
+  const incAng2 = deg(angleOf(D1));
+  const outAng2 = deg(angleOf(D2));
+  const reflAng2 = deg(angleOf(reflectDir(D1, Ninc2)));
+  const tangAng2 = 90; // tangent to right face is vertical
+  const pool2 = commonDistractors(outAng2, incAng2, reflAng2, tangAng2);
+  const targets2 = buildChoiceTargets(P2, pool2, outAng2);
+
+  const promptLines = [
+    `Rectangular glass block (n=1.50) in air (n=1.00).`,
+    `Step 1: the ray hits the LEFT face. Choose the ray inside the block.`,
+    `Angle of incidence at entry: i = ${fmt(iDeg,1)}°.`
+  ];
+
+  const steps = [
+    {
+      type:"chooseRay",
+      P:P1, Dinc:D0, Dout:D1,
+      normalLine:Ninc1,
+      surfaceDir:v(0,1), // face is vertical
+      targets:targets1,
+      correctLabel: targets1.find(t=>t.isCorrect)?.label || "?",
+      explain:`Entry: air → glass, so the ray bends toward the normal (Snell’s law).`
+    },
+    {
+      type:"chooseRay",
+      P:P2, Dinc:D1, Dout:D2,
+      normalLine:Ninc2,
+      surfaceDir:v(0,1),
+      targets:targets2,
+      correctLabel: targets2.find(t=>t.isCorrect)?.label || "?",
+      explain:`Exit: glass → air, so the ray bends away from the normal (Snell’s law).`
+    }
+  ];
+
+  const draw = (reveal)=>{
+    clear();
+    drawRect(xL,yT,xR-xL,yB-yT,"rgba(90,160,255,.22)","#6c7aa8");
+
+    // incident ray to entry
+    const src = sub(P1, mul(D0, 260));
+    drawArrowLine(src, P1, "#ff4b4b", 3);
+
+    // if step 1 revealed, draw inside segment
+    if (stepIndex>=1 || (reveal && stepIndex===0)){
+      drawArrowLine(P1, P2, "#ff4b4b", 3);
+    }
+
+    // if step 2 revealed, draw outgoing
+    if (reveal && stepIndex===1){
+      drawDashedLineThrough(P2, Ninc2, 170, "#8c93a8", 2);
+      drawArrowLine(P2, add(P2, mul(D2, 280)), "#ff4b4b", 3);
+    }
+
+    // candidates for current step
+    clickable = [];
+    const s = steps[stepIndex];
+    if (!reveal){
+      for (const t of s.targets){
+        const endStub = add(s.P, mul(unitFrom(rad(t.angleDeg)), 125));
+        drawArrowLine(s.P, endStub, "rgba(255,255,255,.25)", 2);
+        drawLabelMarker(t.end, t.label);
+        clickable.push({kind:"rayChoice", x:t.end.x, y:t.end.y, r:18, payload:t});
+      }
+      drawPoint(s.P, 5, "#ff4b4b");
+    } else {
+      drawPoint(s.P, 5, "#47d16c");
+      drawDashedLineThrough(s.P, s.normalLine, 170, "#8c93a8", 2);
+      drawArrowLine(s.P, add(s.P, mul(s.Dout, 250)), "#ff4b4b", 3);
+    }
+
+    // if on step 1 and revealed step 1, show normal there too
+    if (reveal && stepIndex===0){
+      drawDashedLineThrough(P1, Ninc1, 170, "#8c93a8", 2);
+    }
+  };
+
+  return { name:"rectBlockPath", promptLines, steps, draw };
+}
+
+function template_semicircle_flatExit(){
+  // Semicircle: ray enters curved face along a radius (no refraction), then hits flat face at centre.
+  // Ask what happens at flat face for i<c, i=c, i>c (glass->air).
+  const C = v(450, 310);
+  const R = 165;
+  const P = v(C.x, C.y); // centre point on flat face
+  const c = criticalAngleDeg(N_GLASS, N_AIR);
+
+  const mode = ["less","equal","greater"][Math.floor(Math.random()*3)];
+  let iDeg;
+  if (mode==="less") iDeg = 10 + Math.random()*(c-12);
+  if (mode==="equal") iDeg = c;
+  if (mode==="greater") iDeg = Math.min(80, c + 8 + Math.random()*30);
+
+  // flat face is horizontal, normal into incident glass is (0,-1) because ray comes from inside (above) hitting boundary at y=C.y with air below
+  const Ninc = v(0,-1);
+  const base = v(0,1); // normal incidence downward
+  const sign = Math.random()<0.5 ? -1 : 1;
+  const Dinc = norm(rot(base, sign*rad(iDeg)));
+
+  // choose start point on curved boundary along reverse direction (so the ray passes through centre)
+  const S = sub(P, mul(Dinc, R));
+
+  // outgoing at flat face (glass->air)
+  let Dout = refractDir(Dinc, Ninc, N_GLASS, N_AIR);
+  let outcome = "REFRACT";
+  if (Dout === null){ outcome="TIR"; Dout = reflectDir(Dinc, Ninc); }
+  if (mode==="equal"){ outcome="CRITICAL"; Dout = v(1,0); if (Dinc.x<0) Dout=v(-1,0); }
+
+  const incAng = deg(angleOf(Dinc));
+  const outAng = deg(angleOf(Dout));
+  const reflAng = deg(angleOf(reflectDir(Dinc, Ninc)));
+  const tangAng = 0;
+
+  const pool = commonDistractors(outAng, incAng, reflAng, tangAng);
+  const targets = buildChoiceTargets(P, pool, outAng);
+
+  const promptLines = [
+    `Semicircular glass block (n=1.50) in air (n=1.00).`,
+    `The ray enters the CURVED face along a radius (so it does not refract on entry).`,
+    `At the FLAT face: critical angle c = ${fmt(c,1)}°. Incidence i = ${fmt(iDeg,1)}°.`,
+    `Choose the correct outgoing ray at the flat face.`
+  ];
+
+  const step = {
+    type:"chooseRay",
+    P, Dinc, Dout,
+    normalLine:Ninc,
+    surfaceDir:v(1,0),
+    targets,
+    correctLabel: targets.find(t=>t.isCorrect)?.label || "?",
+    explain: outcome==="TIR"
+      ? `Here i > c, so the ray reflects internally (i = r).`
+      : outcome==="CRITICAL"
+        ? `Here i = c, so the refracted ray runs along the surface.`
+        : `Here i < c, so the ray refracts out into air, bending away from the normal.`
+  };
+
+  const draw = (reveal)=>{
+    clear();
+
+    // glass region: upper semicircle with flat face at y=C.y
+    drawRegionRect(0, C.y, cv.width, cv.height-C.y, "rgba(255,255,255,.02)");
+    ctx.save();
+    ctx.fillStyle = "rgba(90,160,255,.22)";
+    ctx.beginPath();
+    ctx.moveTo(C.x-R, C.y);
+    ctx.arc(C.x, C.y, R, Math.PI, 0, false);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    // outline
+    ctx.save();
+    ctx.strokeStyle="#6c7aa8"; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(C.x-R, C.y);
+    ctx.lineTo(C.x+R, C.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(C.x, C.y, R, Math.PI, 0, false);
+    ctx.stroke();
+    ctx.restore();
+
+    // incident ray inside to P
+    drawArrowLine(S, P, "#ff4b4b", 3);
+
+    clickable = [];
+    if (!reveal){
+      for (const t of targets){
+        const endStub = add(P, mul(unitFrom(rad(t.angleDeg)), 125));
+        drawArrowLine(P, endStub, "rgba(255,255,255,.25)", 2);
+        drawLabelMarker(t.end, t.label);
+        clickable.push({kind:"rayChoice", x:t.end.x, y:t.end.y, r:18, payload:t});
+      }
+      drawPoint(P, 5, "#ff4b4b");
+    } else {
+      drawDashedLineThrough(P, Ninc, 170, "#8c93a8", 2);
+      drawArrowLine(P, add(P, mul(Dout, 260)), "#ff4b4b", 3);
+      drawPoint(P, 5, "#47d16c");
+    }
+  };
+
+  return { name:"semiFlatExit", promptLines, steps:[step], draw };
+}
+
+function template_semicircle_curvedHit(){
+  // Hit curved face from inside OR outside at i<c / =c / >c when applicable.
+  const C = v(450, 310);
+  const R = 165;
+  const theta = rad(205 + Math.random()*130); // upper arc angles (roughly)
+  const Q = add(C, mul(unitFrom(theta), R));  // point on circle
+  const Nline = norm(sub(Q, C)); // normal line (radial outward)
+
+  const fromInside = Math.random() < 0.5;
+  const nInc = fromInside ? N_GLASS : N_AIR;
+  const nTrans = fromInside ? N_AIR : N_GLASS;
+  const c = criticalAngleDeg(nInc, nTrans);
+
+  let mode = "random";
+  if (fromInside && c!=null){
+    mode = ["less","equal","greater"][Math.floor(Math.random()*3)];
+  }
+
+  let iDeg;
+  if (mode==="less") iDeg = 10 + Math.random()*(c-12);
+  else if (mode==="equal") iDeg = c;
+  else if (mode==="greater") iDeg = Math.min(80, c + 8 + Math.random()*30);
+  else iDeg = 10 + Math.random()*60;
+
+  // Build incoming direction that meets Q with incidence i (relative to normal line).
+  // Normal incidence direction (toward surface) is opposite the normalIntoIncident (direction into incident medium).
+  // Here normalIntoIncident should point into incident medium at Q:
+  // - if coming from outside, into incident medium is outward direction (same as Nline)
+  // - if coming from inside, into incident medium is inward direction (-Nline)
+  const Ninc = fromInside ? mul(Nline, -1) : Nline;
+  const base = mul(Ninc, -1);
+  const sign = Math.random()<0.5 ? -1 : 1;
+  const Dinc = norm(rot(base, sign*rad(iDeg)));
+
+  let Dout = refractDir(Dinc, Ninc, nInc, nTrans);
+  let outcome = "REFRACT";
+  if (Dout === null){
+    outcome = "TIR";
+    Dout = reflectDir(Dinc, Ninc);
+  }
+  if (mode==="equal" && c!=null){
+    outcome = "CRITICAL";
+    // tangent to circle at Q is perpendicular to radial line
+    const t1 = rot(Nline, Math.PI/2);
+    const t2 = mul(t1, -1);
+    Dout = (dot(Dout||t1, t1) > dot(Dout||t1, t2)) ? t1 : t2;
+  }
+
+  const incAng = deg(angleOf(Dinc));
+  const outAng = deg(angleOf(Dout));
+  const reflAng = deg(angleOf(reflectDir(Dinc, Ninc)));
+  const tangAng = deg(angleOf(rot(Nline, Math.PI/2)));
+
+  const pool = commonDistractors(outAng, incAng, reflAng, tangAng);
+  const targets = buildChoiceTargets(Q, pool, outAng);
+
+  const promptLines = [];
+  promptLines.push(`Semicircle curved face at a marked point.`);
+  promptLines.push(`Ray: ${fromInside ? "glass → air" : "air → glass"} (n=${fmt(nInc,2)} → n=${fmt(nTrans,2)}).`);
+  if (fromInside && c!=null) promptLines.push(`Critical angle c = ${fmt(c,1)}°. Incidence i = ${fmt(iDeg,1)}°.`);
+  else promptLines.push(`Incidence i = ${fmt(iDeg,1)}°.`);
+  promptLines.push(`Choose the correct outgoing ray at the curved surface.`);
+
+  const step = {
+    type:"chooseRay",
+    P:Q, Dinc, Dout,
+    normalLine:Ninc,
+    surfaceDir:rot(Nline, Math.PI/2),
+    targets,
+    correctLabel: targets.find(t=>t.isCorrect)?.label || "?",
+    explain: outcome==="TIR"
+      ? `Here i > c, so the ray reflects internally (i = r).`
+      : outcome==="CRITICAL"
+        ? `Here i = c, so the refracted ray runs along the tangent.`
+        : `Refraction obeys n₁ sin i = n₂ sin r.`
+  };
+
+  const draw = (reveal)=>{
+    clear();
+    // glass semicircle (upper)
+    ctx.save();
+    ctx.fillStyle = "rgba(90,160,255,.22)";
+    ctx.beginPath();
+    ctx.moveTo(C.x-R, C.y);
+    ctx.arc(C.x, C.y, R, Math.PI, 0, false);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    ctx.save();
+    ctx.strokeStyle="#6c7aa8"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(C.x-R, C.y); ctx.lineTo(C.x+R, C.y); ctx.stroke();
+    ctx.beginPath(); ctx.arc(C.x, C.y, R, Math.PI, 0, false); ctx.stroke();
+    ctx.restore();
+
+    // incoming ray to Q
+    const src = sub(Q, mul(Dinc, 250));
+    drawArrowLine(src, Q, "#ff4b4b", 3);
+
+    // show the marked point
+    drawPoint(Q, 5, reveal ? "#47d16c" : "#ff4b4b");
+
+    clickable = [];
+    if (!reveal){
+      for (const t of targets){
+        const endStub = add(Q, mul(unitFrom(rad(t.angleDeg)), 125));
+        drawArrowLine(Q, endStub, "rgba(255,255,255,.25)", 2);
+        drawLabelMarker(t.end, t.label);
+        clickable.push({kind:"rayChoice", x:t.end.x, y:t.end.y, r:18, payload:t});
+      }
+    } else {
+      drawDashedLineThrough(Q, Ninc, 170, "#8c93a8", 2);
+      drawArrowLine(Q, add(Q, mul(Dout, 260)), "#ff4b4b", 3);
+    }
+  };
+
+  return { name:"semiCurvedHit", promptLines, steps:[step], draw };
+}
+
+function template_waterEmergence(){
+  // Water below, air above. i<c, i=c, i>c.
+  const P = v(470, 280);
+  const ySurf = P.y;
+
+  const c = criticalAngleDeg(N_WATER, N_AIR);
+  const mode = ["less","equal","greater"][Math.floor(Math.random()*3)];
+  let iDeg;
+  if (mode==="less") iDeg = 10 + Math.random()*(c-12);
+  if (mode==="equal") iDeg = c;
+  if (mode==="greater") iDeg = Math.min(80, c + 8 + Math.random()*30);
+
+  // coming from below (water) to above (air): normal into incident water is (0,1)
+  const Ninc = v(0,1);
+  const base = v(0,-1); // normal incidence upward
+  const sign = Math.random()<0.5 ? -1 : 1;
+  const Dinc = norm(rot(base, sign*rad(iDeg)));
+
+  let Dout = refractDir(Dinc, Ninc, N_WATER, N_AIR);
+  let outcome = "REFRACT";
+  if (Dout === null){ outcome="TIR"; Dout = reflectDir(Dinc, Ninc); }
+  if (mode==="equal"){
+    outcome="CRITICAL";
+    Dout = v(1,0); if (Dinc.x<0) Dout=v(-1,0);
+  }
+
+  const incAng = deg(angleOf(Dinc));
+  const outAng = deg(angleOf(Dout));
+  const reflAng = deg(angleOf(reflectDir(Dinc, Ninc)));
+  const tangAng = 0;
+
+  const pool = commonDistractors(outAng, incAng, reflAng, tangAng);
+  const targets = buildChoiceTargets(P, pool, outAng);
+
+  const promptLines = [
+    `Water → air (n=1.33 → 1.00).`,
+    `Critical angle c = ${fmt(c,1)}°. Incidence i = ${fmt(iDeg,1)}°.`,
+    `Choose the correct outgoing ray at the surface.`
+  ];
+
+  const step = {
+    type:"chooseRay",
+    P, Dinc, Dout,
+    normalLine:Ninc,
+    surfaceDir:v(1,0),
+    targets,
+    correctLabel: targets.find(t=>t.isCorrect)?.label || "?",
+    explain: outcome==="TIR"
+      ? `Here i > c, so the ray reflects back into water (i = r).`
+      : outcome==="CRITICAL"
+        ? `Here i = c, so the refracted ray runs along the surface.`
+        : `Here i < c, so the ray refracts out into air, bending away from the normal.`
+  };
+
+  const draw = (reveal)=>{
+    clear();
+    drawRegionRect(0,ySurf,cv.width,cv.height-ySurf,"rgba(0,140,255,.18)");
+    drawSurfaceLine(v(P.x,ySurf), v(1,0), 900, "#63f3ff", 2);
+
+    const src = sub(P, mul(Dinc, 250));
+    drawArrowLine(src, P, "#ff4b4b", 3);
+
+    clickable = [];
+    if (!reveal){
+      for (const t of targets){
+        const endStub = add(P, mul(unitFrom(rad(t.angleDeg)), 125));
+        drawArrowLine(P, endStub, "rgba(255,255,255,.25)", 2);
+        drawLabelMarker(t.end, t.label);
+        clickable.push({kind:"rayChoice", x:t.end.x, y:t.end.y, r:18, payload:t});
+      }
+      drawPoint(P, 5, "#ff4b4b");
+    } else {
+      drawDashedLineThrough(P, Ninc, 170, "#8c93a8", 2);
+      drawArrowLine(P, add(P, mul(Dout, 260)), "#ff4b4b", 3);
+      drawPoint(P, 5, "#47d16c");
+    }
+  };
+
+  return { name:"waterEmergence", promptLines, steps:[step], draw };
+}
+
+function template_singleMirror(){
+  const P = v(470, 310);
+  const phi = rad(-55 + Math.random()*110); // mirror direction
+  const surfDir = unitFrom(phi);
+  const Nline = rot(surfDir, -Math.PI/2);
+
+  const iDeg = 10 + Math.random()*70;
+  const base = mul(Nline, -1); // normal incidence direction toward mirror
+  const sign = Math.random()<0.5 ? -1 : 1;
+  const Dinc = norm(rot(base, sign*rad(iDeg)));
+  const Dout = reflectDir(Dinc, Nline);
+
+  const incAng = deg(angleOf(Dinc));
+  const outAng = deg(angleOf(Dout));
+  const reflAng = outAng; // correct is reflection
+  const tangAng = deg(angleOf(surfDir));
+
+  const pool = commonDistractors(outAng, incAng, (incAng+180)%360, tangAng);
+  const targets = buildChoiceTargets(P, pool, outAng);
+
+  const promptLines = [
+    `Single mirror reflection.`,
+    `Incidence angle i = ${fmt(iDeg,1)}° (to the normal).`,
+    `Choose the reflected ray (law of reflection: i = r).`
+  ];
+
+  const step = {
+    type:"chooseRay",
+    P, Dinc, Dout,
+    normalLine:Nline,
+    surfaceDir:surfDir,
+    targets,
+    correctLabel: targets.find(t=>t.isCorrect)?.label || "?",
+    explain:`Reflection: the outgoing ray is symmetric about the normal line (i = r).`
+  };
+
+  const draw = (reveal)=>{
+    clear();
+    drawSurfaceLine(P, surfDir, 900, "#63f3ff", 4);
+
+    const src = sub(P, mul(Dinc, 260));
+    drawArrowLine(src, P, "#ff4b4b", 3);
+
+    clickable = [];
+    if (!reveal){
+      for (const t of targets){
+        const endStub = add(P, mul(unitFrom(rad(t.angleDeg)), 125));
+        drawArrowLine(P, endStub, "rgba(255,255,255,.25)", 2);
+        drawLabelMarker(t.end, t.label);
+        clickable.push({kind:"rayChoice", x:t.end.x, y:t.end.y, r:18, payload:t});
+      }
+      drawPoint(P, 5, "#ff4b4b");
+    } else {
+      drawDashedLineThrough(P, Nline, 170, "#8c93a8", 2);
+      drawArrowLine(P, add(P, mul(Dout, 270)), "#ff4b4b", 3);
+      drawPoint(P, 5, "#47d16c");
+    }
+  };
+
+  return { name:"singleMirror", promptLines, steps:[step], draw };
+}
+
+function template_mirrorPair(angleDeg=90){
+  // Two mirrors meeting at a corner, two reflections. Ask stepwise.
+  const C = v(540, 370);
+  const t1 = v(1,0);                 // mirror 1 direction
+  const t2 = unitFrom(rad(-angleDeg)); // mirror 2 direction (rotated up-left for 90°: -90° => vertical up)
+
+  const P1 = add(C, mul(t1, -220));  // point on mirror1 (left of corner)
+  const P2 = add(C, mul(t2, -200));  // point on mirror2 (along its direction)
+
+  // normals (as lines): perpendicular to mirror directions
+  const N1 = rot(t1, -Math.PI/2);
+  const N2 = rot(t2, -Math.PI/2);
+
+  // segment between mirrors
+  const D_between = norm(sub(P2, P1));
+  const D0 = reflectDir(D_between, N1);      // before mirror1
+  const Dfinal = reflectDir(D_between, N2);  // after mirror2
+
+  // step 1 targets: outgoing from mirror1 (should be D_between)
+  const incAng1 = deg(angleOf(D0));
+  const outAng1 = deg(angleOf(D_between));
+  const reflAng1 = deg(angleOf(reflectDir(D0, N1)));
+  const tangAng1 = deg(angleOf(t1));
+  const pool1 = commonDistractors(outAng1, incAng1, reflAng1, tangAng1);
+  const targets1 = buildChoiceTargets(P1, pool1, outAng1);
+
+  // step 2 targets: outgoing from mirror2 (should be Dfinal)
+  const incAng2 = deg(angleOf(D_between));
+  const outAng2 = deg(angleOf(Dfinal));
+  const reflAng2 = deg(angleOf(reflectDir(D_between, N2)));
+  const tangAng2 = deg(angleOf(t2));
+  const pool2 = commonDistractors(outAng2, incAng2, reflAng2, tangAng2);
+  const targets2 = buildChoiceTargets(P2, pool2, outAng2);
+
+  const promptLines = [
+    `Two mirrors meet at ${angleDeg}°.`,
+    `Step 1: choose the ray after reflection from the first mirror.`,
+  ];
+
+  const steps = [
+    {
+      type:"chooseRay",
+      P:P1, Dinc:D0, Dout:D_between,
+      normalLine:N1,
+      surfaceDir:t1,
+      targets:targets1,
+      correctLabel: targets1.find(t=>t.isCorrect)?.label || "?",
+      explain:`Mirror 1: reflect across the normal (i = r).`
+    },
+    {
+      type:"chooseRay",
+      P:P2, Dinc:D_between, Dout:Dfinal,
+      normalLine:N2,
+      surfaceDir:t2,
+      targets:targets2,
+      correctLabel: targets2.find(t=>t.isCorrect)?.label || "?",
+      explain:`Mirror 2: reflect across the second normal.`
+    }
+  ];
+
+  const draw = (reveal)=>{
+    clear();
+    // draw mirror lines through corner
+    drawSurfaceLine(C, t1, 700, "#63f3ff", 4);
+    drawSurfaceLine(C, t2, 700, "#63f3ff", 4);
+
+    // incoming to P1
+    drawArrowLine(sub(P1, mul(D0, 240)), P1, "#ff4b4b", 3);
+
+    // if step 1 revealed, draw between segment
+    if (stepIndex>=1 || (reveal && stepIndex===0)){
+      drawArrowLine(P1, P2, "#ff4b4b", 3);
+    }
+
+    clickable = [];
+    const s = steps[stepIndex];
+
+    if (!reveal){
+      for (const t of s.targets){
+        const endStub = add(s.P, mul(unitFrom(rad(t.angleDeg)), 125));
+        drawArrowLine(s.P, endStub, "rgba(255,255,255,.25)", 2);
+        drawLabelMarker(t.end, t.label);
+        clickable.push({kind:"rayChoice", x:t.end.x, y:t.end.y, r:18, payload:t});
+      }
+      drawPoint(s.P, 5, "#ff4b4b");
+    } else {
+      drawDashedLineThrough(s.P, s.normalLine, 170, "#8c93a8", 2);
+      drawArrowLine(s.P, add(s.P, mul(s.Dout, 270)), "#ff4b4b", 3);
+      drawPoint(s.P, 5, "#47d16c");
+      if (stepIndex===1){
+        // show final ray more clearly
+        drawArrowLine(P2, add(P2, mul(Dfinal, 250)), "#ff4b4b", 3);
+      }
+    }
+  };
+
+  return { name:`mirrorPair${angleDeg}`, promptLines, steps, draw };
+}
+
+function template_prism45(oneOrTwo=1){
+  // Right-angle isosceles prism (45-45-90). Assume glass->air critical angle <45° (it is).
+  const A = v(280, 430);
+  const B = v(560, 430);
+  const Cc = v(280, 150);
+  const tri = [A,B,Cc];
+  const fill = "rgba(90,160,255,.22)";
+
+  // Edges:
+  // AB bottom (horizontal), AC left (vertical), BC hypotenuse (diagonal)
+  const cCrit = criticalAngleDeg(N_GLASS, N_AIR);
+
+  if (oneOrTwo===1){
+    // Enter normally through AB, go up, hit hypotenuse, reflect, exit left face.
+    const Penter = v(430, 430);
+    const Dinside = v(0,-1); // upward
+    // hit hypotenuse line BC: (560,430) to (280,150)
+    // hypotenuse equation: y - 430 = (150-430)/(280-560) (x-560) => slope = 1
+    // so y = x - 130
+    // intersect ray x=430, y = 430? Actually starts at y=430 going up: y decreases. On hypotenuse at x=430 => y=300.
+    const Phyp = v(430, 300);
+    const Thyp = norm(sub(Cc, B)); // direction along hypotenuse
+    const Nhyp = rot(Thyp, -Math.PI/2); // a normal line direction
+
+    const Dref = reflectDir(Dinside, Nhyp);
+
+    // then it hits left face x=280 at y=300 (travelling left)
+    const Pexit = v(280, 300);
+    const Dout = v(-1,0); // exits normally
+
+    const incAng = deg(angleOf(Dinside));
+    const outAng = deg(angleOf(Dref));
+    const reflAng = deg(angleOf(reflectDir(Dinside, Nhyp)));
+    const tangAng = deg(angleOf(Thyp));
+    const pool = commonDistractors(outAng, incAng, reflAng, tangAng);
+    const targets = buildChoiceTargets(Phyp, pool, outAng);
+
+    const promptLines = [
+      `45°–45°–90° glass prism (n=1.50) in air (n=1.00).`,
+      `Critical angle (glass→air): c = ${fmt(cCrit,1)}° (so c < 45°).`,
+      `Ray enters normally through the bottom face and reaches the hypotenuse.`,
+      `Step 1: choose the ray after interaction at the hypotenuse.`
+    ];
+
+    const steps = [
+      {
+        type:"chooseRay",
+        P:Phyp, Dinc:Dinside, Dout:Dref,
+        normalLine:Nhyp,
+        surfaceDir:Thyp,
+        targets,
+        correctLabel: targets.find(t=>t.isCorrect)?.label || "?",
+        explain:`At the hypotenuse the incidence is 45°. Since 45° > c, the ray reflects internally (i = r).`
+      }
+    ];
+
+    const draw = (reveal)=>{
+      clear();
+      drawPoly(tri, fill, "#6c7aa8");
+
+      // incoming ray inside (after entry)
+      drawArrowLine(v(Penter.x, 520), Penter, "#ff4b4b", 3);
+      drawArrowLine(Penter, Phyp, "#ff4b4b", 3);
+
+      clickable = [];
+      if (!reveal){
+        for (const t of targets){
+          const endStub = add(Phyp, mul(unitFrom(rad(t.angleDeg)), 125));
+          drawArrowLine(Phyp, endStub, "rgba(255,255,255,.25)", 2);
+          drawLabelMarker(t.end, t.label);
+          clickable.push({kind:"rayChoice", x:t.end.x, y:t.end.y, r:18, payload:t});
+        }
+        drawPoint(Phyp, 5, "#ff4b4b");
+      } else {
+        drawDashedLineThrough(Phyp, Nhyp, 170, "#8c93a8", 2);
+        drawArrowLine(Phyp, add(Phyp, mul(Dref, 230)), "#ff4b4b", 3);
+        drawArrowLine(Phyp, Pexit, "#ff4b4b", 3);
+        drawArrowLine(Pexit, add(Pexit, mul(Dout, 240)), "#ff4b4b", 3);
+        drawPoint(Phyp, 5, "#47d16c");
+      }
+    };
+
+    return { name:"prism45_1bounce", promptLines, steps, draw };
+  }
+
+  // two reflections: enter hypotenuse normally, reflect off legs, exit back through hypotenuse (retroreflection)
+  // We construct a simple internal path that hits two legs:
+  // Choose entry point near middle of hypotenuse and direction normal to it into prism.
+  const Thyp = norm(sub(Cc, B));
+  const NhypIn = rot(Thyp, Math.PI/2); // inward-ish normal (as a line)
+
+  // pick point on hypotenuse
+  const t = 0.5;
+  const P0 = add(B, mul(sub(Cc,B), t)); // midpoint on BC
+  const D0 = norm(NhypIn);             // into prism
+  // This D0 will be roughly down-left; it will hit bottom then left, then exit.
+  // For quiz, stepwise: after first reflection, after second reflection.
+  const P1 = v(420, 430); // approximate bottom hit (kept stable)
+  const Nbottom = v(0,1);
+  const D1 = reflectDir(D0, Nbottom);
+
+  const P2 = v(280, 300); // left hit
+  const Nleft = v(-1,0);
+  const D2 = reflectDir(D1, Nleft);
+
+  const Dout = mul(D0,-1); // retro: anti-parallel
+
+  const pool1 = commonDistractors(deg(angleOf(D1)), deg(angleOf(D0)), deg(angleOf(reflectDir(D0,Nbottom))), 0);
+  const targets1 = buildChoiceTargets(P1, pool1, deg(angleOf(D1)));
+
+  const pool2 = commonDistractors(deg(angleOf(D2)), deg(angleOf(D1)), deg(angleOf(reflectDir(D1,Nleft))), 90);
+  const targets2 = buildChoiceTargets(P2, pool2, deg(angleOf(D2)));
+
+  const promptLines = [
+    `45°–45°–90° glass prism (n=1.50) in air.`,
+    `Critical angle (glass→air): c = ${fmt(cCrit,1)}° (so c < 45°).`,
+    `Ray enters the hypotenuse normally.`,
+    `Step 1: choose the ray after the first internal reflection.`
+  ];
+
+  const steps = [
+    {
+      type:"chooseRay",
+      P:P1, Dinc:D0, Dout:D1,
+      normalLine:Nbottom,
+      surfaceDir:v(1,0),
+      targets:targets1,
+      correctLabel: targets1.find(t=>t.isCorrect)?.label || "?",
+      explain:`First bounce: reflect across the bottom-face normal (i = r).`
+    },
+    {
+      type:"chooseRay",
+      P:P2, Dinc:D1, Dout:D2,
+      normalLine:Nleft,
+      surfaceDir:v(0,1),
+      targets:targets2,
+      correctLabel: targets2.find(t=>t.isCorrect)?.label || "?",
+      explain:`Second bounce: reflect across the left-face normal. The ray then returns to the hypotenuse anti-parallel to the original.`
+    }
+  ];
+
+  const draw = (reveal)=>{
+    clear();
+    drawPoly(tri, fill, "#6c7aa8");
+
+    // show entry at hypotenuse
+    drawArrowLine(sub(P0, mul(D0, 230)), P0, "#ff4b4b", 3);
+    // internal to bottom
+    drawArrowLine(P0, P1, "#ff4b4b", 3);
+
+    if (stepIndex>=1 || (reveal && stepIndex===0)){
+      drawArrowLine(P1, P2, "#ff4b4b", 3);
+    }
+
+    clickable = [];
+    const s = steps[stepIndex];
+    if (!reveal){
+      for (const t of s.targets){
+        const endStub = add(s.P, mul(unitFrom(rad(t.angleDeg)), 125));
+        drawArrowLine(s.P, endStub, "rgba(255,255,255,.25)", 2);
+        drawLabelMarker(t.end, t.label);
+        clickable.push({kind:"rayChoice", x:t.end.x, y:t.end.y, r:18, payload:t});
+      }
+      drawPoint(s.P, 5, "#ff4b4b");
+    } else {
+      drawDashedLineThrough(s.P, s.normalLine, 170, "#8c93a8", 2);
+      drawArrowLine(s.P, add(s.P, mul(s.Dout, 230)), "#ff4b4b", 3);
+      drawPoint(s.P, 5, "#47d16c");
+      if (stepIndex===1){
+        // show exit direction at hypotenuse (retro)
+        drawArrowLine(P2, add(P2, mul(D2, 210)), "#ff4b4b", 3);
+      }
+    }
+  };
+
+  return { name:"prism45_2bounce", promptLines, steps, draw };
+}
+
+function template_prismTriangle(kind="equilateral"){
+  // Two refractions through a triangular prism: equilateral (60°) or narrow (~20° apex).
+  const cx=470, baseY=420;
+  let A,B,Cc, label;
+  if (kind==="equilateral"){
+    const s=320;
+    const h=s*Math.sqrt(3)/2;
+    A=v(cx-s/2, baseY);
+    B=v(cx+s/2, baseY);
+    Cc=v(cx, baseY-h);
+    label="Equilateral prism (60° apex)";
+  } else {
+    // narrow: apex ~20°, make a long skinny triangle
+    const s=360;
+    const apex=rad(20);
+    const h = (s/2)/Math.tan(apex/2);
+    A=v(cx-s/2, baseY);
+    B=v(cx+s/2, baseY);
+    Cc=v(cx, baseY-h);
+    label="Narrow prism (small apex angle)";
+  }
+  const tri=[A,B,Cc];
+  const fill="rgba(90,160,255,.22)";
+
+  // pick an entry point on left face AC (mid-ish)
+  const P1 = add(A, mul(sub(Cc,A), 0.55));
+
+  // compute face direction and normal into incident air (approx)
+  const face1Dir = norm(sub(Cc, A));        // along AC
+  const Nface1 = rot(face1Dir, Math.PI/2);  // one normal
+  // choose the normal that points outward towards air on the left side:
+  // triangle centroid
+  const G = v((A.x+B.x+Cc.x)/3, (A.y+B.y+Cc.y)/3);
+  const mid1 = add(A, mul(sub(Cc,A),0.5));
+  // inward points toward centroid
+  const inward1 = norm(sub(G, mid1));
+  // normal into incident air should point outwards, so opposite of inward
+  const Nout1 = mul(inward1,-1);
+  // for refraction, we want Ninc (into incident air) = Nout1
+  const Ninc1 = Nout1;
+
+  const iDeg = 10 + Math.random()*50;
+  const base = mul(Ninc1,-1); // into prism direction
+  const sign = Math.random()<0.5 ? -1 : 1;
+  const D0 = norm(rot(base, sign*rad(iDeg)));
+
+  // refract into prism
+  let D1 = refractDir(D0, Ninc1, N_AIR, N_GLASS);
+  if (!D1) D1 = norm(base);
+
+  // second face: we won't do full robust intersection; instead pick a stable exit face (BC) for pedagogy
+  // approximate an exit point on right face BC
+  const P2 = add(B, mul(sub(Cc,B), 0.55));
+  const face2Dir = norm(sub(Cc, B));
+  const mid2 = add(B, mul(sub(Cc,B),0.5));
+  const inward2 = norm(sub(G, mid2));
+  const Nout2 = mul(inward2,-1);
+  const Ninc2 = inward2; // into incident glass (inside) is inward
+
+  // build a plausible inside ray direction that aims from P1 to P2 (so the picture is coherent)
+  D1 = norm(sub(P2, P1));
+
+  // refract out
+  let D2 = refractDir(D1, Ninc2, N_GLASS, N_AIR);
+  if (!D2) D2 = reflectDir(D1, Ninc2);
+
+  const pool1 = commonDistractors(deg(angleOf(D1)), deg(angleOf(D0)), deg(angleOf(reflectDir(D0, Ninc1))), deg(angleOf(face1Dir)));
+  const targets1 = buildChoiceTargets(P1, pool1, deg(angleOf(D1)));
+
+  const pool2 = commonDistractors(deg(angleOf(D2)), deg(angleOf(D1)), deg(angleOf(reflectDir(D1, Ninc2))), deg(angleOf(face2Dir)));
+  const targets2 = buildChoiceTargets(P2, pool2, deg(angleOf(D2)));
+
+  const promptLines = [
+    `${label} (glass n=1.50) in air (n=1.00).`,
+    `Step 1: choose the ray inside after refraction at the first face.`,
+    `Incidence at entry: i = ${fmt(iDeg,1)}°.`
+  ];
+
+  const steps = [
+    {
+      type:"chooseRay",
+      P:P1, Dinc:D0, Dout:D1,
+      normalLine:Ninc1,
+      surfaceDir:face1Dir,
+      targets:targets1,
+      correctLabel: targets1.find(t=>t.isCorrect)?.label || "?",
+      explain:`Air → glass: bends toward the normal.`
+    },
+    {
+      type:"chooseRay",
+      P:P2, Dinc:D1, Dout:D2,
+      normalLine:Ninc2,
+      surfaceDir:face2Dir,
+      targets:targets2,
+      correctLabel: targets2.find(t=>t.isCorrect)?.label || "?",
+      explain:`Glass → air: bends away from the normal.`
+    }
+  ];
+
+  const draw = (reveal)=>{
+    clear();
+    drawPoly(tri, fill, "#6c7aa8");
+
+    // incident ray to P1
+    drawArrowLine(sub(P1, mul(D0, 240)), P1, "#ff4b4b", 3);
+
+    // if step 1 revealed show inside segment to P2
+    if (stepIndex>=1 || (reveal && stepIndex===0)){
+      drawArrowLine(P1, P2, "#ff4b4b", 3);
+    }
+
+    clickable = [];
+    const s = steps[stepIndex];
+    if (!reveal){
+      for (const t of s.targets){
+        const endStub = add(s.P, mul(unitFrom(rad(t.angleDeg)), 125));
+        drawArrowLine(s.P, endStub, "rgba(255,255,255,.25)", 2);
+        drawLabelMarker(t.end, t.label);
+        clickable.push({kind:"rayChoice", x:t.end.x, y:t.end.y, r:18, payload:t});
+      }
+      drawPoint(s.P, 5, "#ff4b4b");
+    } else {
+      drawDashedLineThrough(s.P, s.normalLine, 170, "#8c93a8", 2);
+      drawArrowLine(s.P, add(s.P, mul(s.Dout, 250)), "#ff4b4b", 3);
+      drawPoint(s.P, 5, "#47d16c");
+      if (stepIndex===1){
+        drawArrowLine(P2, add(P2, mul(D2, 240)), "#ff4b4b", 3);
+      }
+    }
+  };
+
+  return { name:`prism:${kind}`, promptLines, steps, draw };
+}
+
+function template_lensSurface(which="enter"){
+  // One surface refraction only (as requested): entering surface or leaving surface.
+  // We draw a biconvex lens, but we quiz only one interface each time.
+  const cx=480, cy=300;
+  const R=170;
+  const sep=90;
+  const Cleft = v(cx+sep, cy);  // left surface centre to the right
+  const Cright = v(cx-sep, cy); // right surface centre to the left
+
+  // pick a point on the relevant surface
+  const dy = (-80 + Math.random()*160);
+  let P, Nout, Ninc, Dinc, nInc, nTrans, label;
+
+  if (which==="enter"){
+    // point on left surface (circle centred at Cleft, using left side)
+    const x = Cleft.x - Math.sqrt(Math.max(0, R*R - dy*dy));
+    P = v(x, cy+dy);
+
+    // outward normal from lens to air on left is radial from centre to point (points left)
+    Nout = norm(sub(P, Cleft));
+    // ray comes from air: normal into incident air is same as outward normal
+    Ninc = Nout;
+    nInc = N_AIR; nTrans = N_GLASS;
+    label = "Convex lens (entering): air → glass at the FIRST surface.";
+    // choose incoming direction roughly left-to-right
+    const iDeg = 10 + Math.random()*55;
+    const base = mul(Ninc, -1); // into lens
+    const sign = Math.random()<0.5 ? -1 : 1;
+    Dinc = norm(rot(base, sign*rad(iDeg)));
+    var iShown = iDeg;
+  } else {
+    // leaving: point on right surface (circle centred at Cright, using right side)
+    const x = Cright.x + Math.sqrt(Math.max(0, R*R - dy*dy));
+    P = v(x, cy+dy);
+
+    // outward normal from lens to air on right is radial from centre to point (points right)
+    Nout = norm(sub(P, Cright));
+    // ray comes from inside glass: normal into incident glass is opposite outward
+    Ninc = mul(Nout, -1);
+    nInc = N_GLASS; nTrans = N_AIR;
+    label = "Convex lens (leaving): glass → air at the SECOND surface.";
+    const iDeg = 10 + Math.random()*50;
+    const base = mul(Ninc, -1); // direction toward boundary
+    const sign = Math.random()<0.5 ? -1 : 1;
+    Dinc = norm(rot(base, sign*rad(iDeg)));
+    var iShown = iDeg;
+  }
+
+  let Dout = refractDir(Dinc, Ninc, nInc, nTrans);
+  if (Dout === null){
+    // TIR in lens-to-air can happen at steep angles; keep the quiz coherent by biasing away from it
+    Dout = reflectDir(Dinc, Ninc);
+  }
+
+  const incAng = deg(angleOf(Dinc));
+  const outAng = deg(angleOf(Dout));
+  const reflAng = deg(angleOf(reflectDir(Dinc, Ninc)));
+  const tangAng = deg(angleOf(rot(Nout, Math.PI/2)));
+
+  const pool = commonDistractors(outAng, incAng, reflAng, tangAng);
+  const targets = buildChoiceTargets(P, pool, outAng);
+
+  const promptLines = [
+    label,
+    `Incidence at this surface: i = ${fmt(iShown,1)}°.`,
+    `Choose the correct outgoing ray at THIS surface only.`
+  ];
+  if (which==="leave"){
+    const c = criticalAngleDeg(N_GLASS, N_AIR);
+    promptLines.splice(1,0,`Critical angle (glass→air): c = ${fmt(c,1)}°.`);
+  }
+
+  const step = {
+    type:"chooseRay",
+    P, Dinc, Dout,
+    normalLine:Ninc,
+    surfaceDir:rot(Nout, Math.PI/2),
+    targets,
+    correctLabel: targets.find(t=>t.isCorrect)?.label || "?",
+    explain:`One surface only: apply Snell’s law with the normal to the curved surface (radial line).`
+  };
+
+  const drawLens = ()=>{
+    // draw lens as overlap-ish look (two arcs)
+    ctx.save();
+    ctx.fillStyle="rgba(90,160,255,.22)";
+    ctx.beginPath();
+    // left arc (circle centred at Cleft) – draw the portion facing left
+    ctx.arc(Cleft.x, Cleft.y, R, rad(115), rad(245), false);
+    // right arc (circle centred at Cright) – portion facing right
+    ctx.arc(Cright.x, Cright.y, R, rad(-65), rad(65), false);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle="#6c7aa8";
+    ctx.lineWidth=2;
+    ctx.stroke();
+    ctx.restore();
+
+    // principal axis
+    ctx.save();
+    ctx.setLineDash([6,6]);
+    ctx.strokeStyle="rgba(255,255,255,.18)";
+    ctx.beginPath();
+    ctx.moveTo(40, cy);
+    ctx.lineTo(cv.width-40, cy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  };
+
+  const draw = (reveal)=>{
+    clear();
+    drawLens();
+
+    // draw incoming ray to P
+    drawArrowLine(sub(P, mul(Dinc, 250)), P, "#ff4b4b", 3);
+
+    clickable = [];
+    if (!reveal){
+      for (const t of targets){
+        const endStub = add(P, mul(unitFrom(rad(t.angleDeg)), 125));
+        drawArrowLine(P, endStub, "rgba(255,255,255,.25)", 2);
+        drawLabelMarker(t.end, t.label);
+        clickable.push({kind:"rayChoice", x:t.end.x, y:t.end.y, r:18, payload:t});
+      }
+      drawPoint(P, 5, "#ff4b4b");
+    } else {
+      drawDashedLineThrough(P, Ninc, 170, "#8c93a8", 2);
+      drawArrowLine(P, add(P, mul(Dout, 260)), "#ff4b4b", 3);
+      drawPoint(P, 5, "#47d16c");
+    }
+  };
+
+  return { name:`lens:${which}`, promptLines, steps:[step], draw };
+}
+
+function template_drawNormal(kind="slanted"){
+  // Drag a bidirectional normal line through a surface.
+  const P = v(470, 300);
+
+  let surfDir, normalLine, label;
+  if (kind==="flat"){
+    surfDir = v(1,0);
+    normalLine = v(0,1);
+    label = "Draw the normal to a horizontal surface.";
+  } else if (kind==="slanted"){
+    const ang = rad(-35 + Math.random()*70);
+    surfDir = unitFrom(ang);
+    normalLine = rot(surfDir, -Math.PI/2);
+    label = "Draw the normal to a slanted surface.";
+  } else {
+    // curved: circle normal is radial
+    const C = v(520, 300);
+    const R = 150;
+    const th = rad(160 + Math.random()*120);
+    const Q = add(C, mul(unitFrom(th), R));
+    // use Q as point, radial as normal
+    return template_drawNormalCurved(C, R, Q);
+  }
+
+  const tolDeg = 12;
+  const step = {
+    type:"drawNormal",
+    P,
+    surfDir,
+    normalLine,
+    tolDeg,
+    explain:`The normal is perpendicular to the surface. It’s a line (draw it through the boundary).`
+  };
+
+  const promptLines = [
+    `INTERACTIVE: Click the red dot and drag a line to draw the NORMAL.`,
+    `${label} Tolerance: ±${tolDeg}°.`
+  ];
+
+  const draw = (reveal)=>{
+    clear();
+    drawSurfaceLine(P, surfDir, 860, "#63f3ff", 4);
+    drawPoint(P, 6, "#ff4b4b");
+
+    // preview line while dragging
+    if (dragging && dragging.kind==="normal"){
+      drawDashedLineThrough(P, sub(dragging.p1, P), 170, "#ffd452", 3);
+    }
+
+    if (reveal){
+      drawDashedLineThrough(P, normalLine, 180, "#8c93a8", 3);
+      drawPoint(P, 6, "#47d16c");
+    }
+
+    clickable = [{kind:"dragNormal", x:P.x, y:P.y, r:26, payload:{}}];
+  };
+
+  return { name:`drawNormal:${kind}`, promptLines, steps:[step], draw };
+}
+
+function template_drawNormalCurved(C, R, Q){
+  const tolDeg = 12;
+  const normalLine = norm(sub(Q, C));
+  const step = { type:"drawNormal", P:Q, surfDir:rot(normalLine, Math.PI/2), normalLine, tolDeg,
+                 explain:`For a curved surface, the normal is the radius through the point.` };
+
+  const promptLines = [
+    `INTERACTIVE: Curved surface normal.`,
+    `Click the red dot and drag the normal (it must pass through the circle’s centre). Tolerance: ±${tolDeg}°.`
+  ];
+
+  const draw = (reveal)=>{
+    clear();
+    // draw circle arc (full circle for clarity)
+    ctx.save();
+    ctx.strokeStyle="#6c7aa8"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(C.x,C.y,R,0,TAU); ctx.stroke();
+    ctx.restore();
+
+    // show centre
+    drawPoint(C, 4, "rgba(255,255,255,.35)");
+    drawPoint(Q, 6, "#ff4b4b");
+
+    if (dragging && dragging.kind==="normal"){
+      drawDashedLineThrough(Q, sub(dragging.p1, Q), 180, "#ffd452", 3);
+    }
+    if (reveal){
+      drawDashedLineThrough(Q, normalLine, 190, "#8c93a8", 3);
+      drawPoint(Q, 6, "#47d16c");
+    }
+    clickable = [{kind:"dragNormal", x:Q.x, y:Q.y, r:26, payload:{}}];
+  };
+
+  return { name:"drawNormal:curved", promptLines, steps:[step], draw };
+}
+
+function template_angleID(kind="incidence"){
+  // Click the correct labelled angle (letters shuffled each time).
+  // We draw a refraction diagram with arcs and letter markers.
+  const P = v(470, 300);
+  const surfDir = v(1,0);
+  const Nline = v(0,-1);
+  const n1=N_AIR, n2=N_GLASS;
+
+  const iDeg = 20 + Math.random()*40;
+  const sign = Math.random()<0.5 ? -1 : 1;
+  const Dinc = norm(rot(v(0,1), sign*rad(iDeg))); // coming from above
+  let Dout = refractDir(Dinc, Nline, n1, n2);
+  if (!Dout) Dout = norm(v(0,1));
+
+  // angles for arcs
+  const aN = angleOf(Nline);
+  const aI = angleOf(Dinc);
+  const aR = angleOf(Dout);
+  // incidence arc between ray and normal (use the smaller angle)
+  const arcInc = {a0:aN, a1:aI};
+  const arcRefr = {a0:aN, a1:aR};
+  // complementary arcs to surface
+  const surfAng = angleOf(surfDir);
+  const arcIncToSurf = {a0:surfAng, a1:aI};
+  const arcRefrToSurf = {a0:surfAng, a1:aR};
+
+  // critical angle arc is separate: show a second mini diagram on the side
+  const c = criticalAngleDeg(N_GLASS, N_AIR);
+
+  // Create 6 markers with shuffled letters
+  const letters = "abcdefg".split("").sort(()=>Math.random()-0.5);
+  const markers = [];
+
+  function placeMarker(arc, r, text){
+    const am = midAngle(arc.a0, arc.a1);
+    const pos = add(P, mul(unitFrom(am), r));
+    markers.push({pos, text, hitR:18, isCorrect:false});
+    return pos;
+  }
+
+  // define which arc is asked
+  let askedText;
+  if (kind==="incidence") askedText = "Angle of incidence (i)";
+  else if (kind==="refraction") askedText = "Angle of refraction (r)";
+  else askedText = "Critical angle (c)";
+
+  // Map letters to meanings randomly:
+  // We’ll always place incidence and refraction markers; and include a critical-angle marker in a mini inset.
+  const posI = placeMarker(arcInc, 55, letters[0]);
+  const posR = placeMarker(arcRefr, 55, letters[1]);
+  const posIS = placeMarker(arcIncToSurf, 75, letters[2]);
+  const posRS = placeMarker(arcRefrToSurf, 75, letters[3]);
+
+  // Add two decoys near the boundary
+  markers.push({pos:add(P,v(-70,40)), text:letters[4], hitR:18, isCorrect:false});
+  markers.push({pos:add(P,v(90,30)), text:letters[5], hitR:18, isCorrect:false});
+
+  // Inset critical-angle marker
+  const insetC = v(735, 220);
+  const insetSurfDir = v(1,0);
+  const insetN = v(0,-1);
+  const insetRay = norm(rot(v(0,1), rad(90-c))); // inside glass toward surface with i=c
+  const insetTan = v(1,0); // along surface
+  const insetArc = {a0:angleOf(insetN), a1:angleOf(insetRay)};
+  const posC = add(insetC, mul(unitFrom(midAngle(insetArc.a0, insetArc.a1)), 48));
+  const cLetter = letters[6];
+  markers.push({pos:posC, text:cLetter, hitR:18, isCorrect:false});
+
+  // mark correct
+  if (kind==="incidence"){
+    markers.find(m=>m.text===letters[0]).isCorrect = true;
+  } else if (kind==="refraction"){
+    markers.find(m=>m.text===letters[1]).isCorrect = true;
+  } else {
+    markers.find(m=>m.text===cLetter).isCorrect = true;
+  }
+
+  const promptLines = [
+    `ANGLE ID: Click the labelled marker for the ${askedText}.`,
+    `Letters are shuffled each time. (Main diagram is air→glass.)`,
+    (kind==="critical" ? `Critical angle shown in the inset (glass→air): c = ${fmt(c,1)}°.` : `Incidence shown: i = ${fmt(iDeg,1)}°.`)
+  ];
+
+  const step = {
+    type:"identifyAngle",
+    P, markers,
+    explain: kind==="incidence"
+      ? `Angle of incidence is measured between the incident ray and the normal.`
+      : kind==="refraction"
+        ? `Angle of refraction is measured between the refracted ray and the normal.`
+        : `Critical angle is the incidence angle in the denser medium that produces r = 90° (ray along the boundary).`
+  };
+
+  const draw = (reveal)=>{
+    clear();
+    // main interface
+    drawRegionRect(0, P.y, cv.width, cv.height-P.y, "rgba(90,160,255,.10)");
+    drawSurfaceLine(P, surfDir, 900, "#63f3ff", 2);
+
+    // incident + refracted
+    drawArrowLine(sub(P, mul(Dinc, 240)), P, "#ff4b4b", 3);
+    drawArrowLine(P, add(P, mul(Dout, 230)), "#ff4b4b", 3);
+
+    // normal (always shown for angle ID)
+    drawDashedLineThrough(P, Nline, 160, "#8c93a8", 2);
+
+    // arcs
+    drawAngleArc(P, 45, arcInc.a0, arcInc.a1, "#ffd452");
+    drawAngleArc(P, 45, arcRefr.a0, arcRefr.a1, "#ffd452");
+    drawAngleArc(P, 65, arcIncToSurf.a0, arcIncToSurf.a1, "rgba(255,255,255,.18)");
+    drawAngleArc(P, 65, arcRefrToSurf.a0, arcRefrToSurf.a1, "rgba(255,255,255,.18)");
+
+    // inset critical diagram
+    ctx.save();
+    ctx.strokeStyle="rgba(255,255,255,.15)";
+    ctx.strokeRect(650, 140, 210, 180);
+    ctx.restore();
+    drawSurfaceLine(insetC, insetSurfDir, 200, "rgba(99,243,255,.6)", 2);
+    drawDashedLineThrough(insetC, insetN, 80, "rgba(140,147,168,.7)", 2);
+    drawArrowLine(add(insetC, v(0, 80)), insetC, "#ff4b4b", 2); // just a reference
+    // ray inside glass at i=c
+    drawArrowLine(add(insetC, mul(insetRay, -95)), insetC, "#ff4b4b", 2);
+    drawArrowLine(insetC, add(insetC, mul(insetTan, 95)), "#ff4b4b", 2);
+    drawAngleArc(insetC, 38, insetArc.a0, insetArc.a1, "rgba(255,212,82,.85)");
+
+    clickable = [];
+    for (const m of markers){
+      drawLabelMarker(m.pos, m.text);
+      clickable.push({kind:"label", x:m.pos.x, y:m.pos.y, r:m.hitR, payload:m});
+    }
+
+    if (reveal){
+      // highlight: draw a ring around correct marker
+      const corr = markers.find(m=>m.isCorrect);
+      if (corr){
+        ctx.save();
+        ctx.strokeStyle="var(--good)";
+        ctx.lineWidth=3;
+        ctx.beginPath();
+        ctx.arc(corr.pos.x, corr.pos.y, 22, 0, TAU);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+  };
+
+  return { name:`angleID:${kind}`, promptLines, steps:[step], draw };
+}
+
+/* =========================
+   Challenge selection
+========================= */
+function pickTemplate(){
+  // Avoid repeating the same template name too often
+  const candidates = [];
+
+  // flat interface variety (air↔glass, slanted/horizontal/vertical, with i regimes)
+  candidates.push(()=>template_flatInterface({from:"above", nInc:N_AIR, nTrans:N_GLASS, nameInc:"air", nameTrans:"glass", includeCritical:false, iMode:"random", orientation:"horizontal"}));
+  candidates.push(()=>template_flatInterface({from:"left", nInc:N_AIR, nTrans:N_GLASS, nameInc:"air", nameTrans:"glass", includeCritical:false, iMode:"random", orientation:"vertical"}));
+  candidates.push(()=>template_flatInterface({from:"above", nInc:N_AIR, nTrans:N_GLASS, nameInc:"air", nameTrans:"glass", includeCritical:false, iMode:"random", orientation:"slanted"}));
+
+  candidates.push(()=>template_flatInterface({from:"below", nInc:N_GLASS, nTrans:N_AIR, nameInc:"glass", nameTrans:"air", includeCritical:true, iMode:"less", orientation:"horizontal"}));
+  candidates.push(()=>template_flatInterface({from:"below", nInc:N_GLASS, nTrans:N_AIR, nameInc:"glass", nameTrans:"air", includeCritical:true, iMode:"equal", orientation:"horizontal"}));
+  candidates.push(()=>template_flatInterface({from:"below", nInc:N_GLASS, nTrans:N_AIR, nameInc:"glass", nameTrans:"air", includeCritical:true, iMode:"greater", orientation:"horizontal"}));
+
+  // rectangular block path
+  candidates.push(()=>template_rectBlockPath());
+
+  // semicircle: flat exit + curved hit both sides
+  candidates.push(()=>template_semicircle_flatExit());
+  candidates.push(()=>template_semicircle_curvedHit());
+
+  // water emergence
+  candidates.push(()=>template_waterEmergence());
+
+  // mirrors
+  candidates.push(()=>template_singleMirror());
+  candidates.push(()=>template_mirrorPair(90));
+  candidates.push(()=>template_mirrorPair(60));
+  candidates.push(()=>template_mirrorPair(120));
+
+  // prisms
+  candidates.push(()=>template_prism45(1));
+  candidates.push(()=>template_prism45(2));
+  candidates.push(()=>template_prismTriangle("equilateral"));
+  candidates.push(()=>template_prismTriangle("narrow"));
+
+  // lens: entering and leaving surfaces (separate refractions)
+  candidates.push(()=>template_lensSurface("enter"));
+  candidates.push(()=>template_lensSurface("leave"));
+
+  // angle identification
+  candidates.push(()=>template_angleID("incidence"));
+  candidates.push(()=>template_angleID("refraction"));
+  candidates.push(()=>template_angleID("critical"));
+
+  // draw normal
+  candidates.push(()=>template_drawNormal("flat"));
+  candidates.push(()=>template_drawNormal("slanted"));
+  candidates.push(()=>template_drawNormal("curved"));
+
+  // pick with repeat-avoid
+  for (let tries=0; tries<12; tries++){
+    const t = candidates[Math.floor(Math.random()*candidates.length)]();
+    if (recentNames.slice(-4).includes(t.name)) continue;
+    return t;
+  }
+  return candidates[Math.floor(Math.random()*candidates.length)]();
+}
+
+function loadChallenge(){
+  challenge = pickTemplate();
+  recentNames.push(challenge.name);
+  stepIndex = 0;
+  phase = "question";
+  setFeedback("");
+  render();
+}
+
+function currentStep(){
+  return challenge.steps[stepIndex];
+}
+
+function promptText(){
+  const lines = challenge.promptLines.slice();
+  // update the step-specific line for multi-step challenges
+  if (challenge.steps.length>1){
+    const s = currentStep();
+    if (challenge.name==="rectBlockPath"){
+      lines[1] = stepIndex===0
+        ? `Step 1: the ray hits the LEFT face. Choose the ray inside the block.`
+        : `Step 2: the ray hits the RIGHT face. Choose the emerging ray in air.`;
+    }
+    if (challenge.name.startsWith("mirrorPair")){
+      lines[1] = stepIndex===0
+        ? `Step 1: choose the ray after reflection from the first mirror.`
+        : `Step 2: choose the ray after reflection from the second mirror.`;
+    }
+    if (challenge.name.startsWith("prism:")){
+      lines[1] = stepIndex===0
+        ? `Step 1: choose the ray inside after refraction at the first face.`
+        : `Step 2: choose the ray in air after refraction at the second face.`;
+    }
+    if (challenge.name.startsWith("prism45_2bounce")){
+      lines[3] = stepIndex===0
+        ? `Step 1: choose the ray after the first internal reflection.`
+        : `Step 2: choose the ray after the second internal reflection.`;
+    }
+  }
+  return lines.join("\n");
+}
+
+function render(){
+  if (!challenge) return;
+  promptEl.textContent = promptText();
+  updatePills();
+  const reveal = (phase==="revealed");
+  challenge.draw(reveal);
+}
+
+/* =========================
+   Interaction
+========================= */
+function hitTest(x,y){
+  for (const c of clickable){
+    const d = Math.hypot(x-c.x,y-c.y);
+    if (d <= c.r) return c;
+  }
+  return null;
+}
+
+function revealAndScore(correct){
+  scoreTotal++;
+  if (correct) scoreCorrect++;
+  phase = "revealed";
+  render();
+  updatePills();
+}
+
+function advanceOrNext(){
+  if (!challenge) return;
+  if (phase !== "revealed"){
+    // allow skipping forward
+    loadChallenge();
+    return;
+  }
+  if (stepIndex < challenge.steps.length-1){
+    stepIndex++;
+    phase = "question";
+    setFeedback("");
+    render();
+  } else {
+    loadChallenge();
+  }
+}
+
+cv.addEventListener("mousedown", (e)=>{
+  if (!challenge) return;
+  const r = cv.getBoundingClientRect();
+  const x = (e.clientX - r.left) * (cv.width / r.width);
+  const y = (e.clientY - r.top) * (cv.height / r.height);
+
+  if (phase==="revealed") return;
+
+  const s = currentStep();
+  if (s.type === "drawNormal"){
+    // must start near point
+    const P = s.P;
+    if (Math.hypot(x-P.x, y-P.y) <= 26){
+      dragging = {kind:"normal", p0:P, p1:v(x,y)};
+      render();
+    }
+    return;
+  }
+
+  const hit = hitTest(x,y);
+  if (!hit) return;
+
+  if (s.type === "chooseRay" && hit.kind==="rayChoice"){
+    const picked = hit.payload;
+    const correct = !!picked.isCorrect;
+    const correctLabel = s.correctLabel;
+    if (correct){
+      setFeedback(`Correct (${picked.label}). ${s.explain}`, true);
+    } else {
+      setFeedback(`Incorrect (${picked.label}). Correct was ${correctLabel}. ${s.explain}`, false);
+    }
+    revealAndScore(correct);
+    return;
+  }
+
+  if (s.type === "identifyAngle" && hit.kind==="label"){
+    const correct = !!hit.payload.isCorrect;
+    if (correct){
+      setFeedback(`Correct. ${s.explain}`, true);
+    } else {
+      setFeedback(`Incorrect. ${s.explain}`, false);
+    }
+    revealAndScore(correct);
+    return;
+  }
+});
+
+cv.addEventListener("mousemove", (e)=>{
+  if (!dragging) return;
+  const r = cv.getBoundingClientRect();
+  const x = (e.clientX - r.left) * (cv.width / r.width);
+  const y = (e.clientY - r.top) * (cv.height / r.height);
+  dragging.p1 = v(x,y);
+  render();
+});
+
+cv.addEventListener("mouseup", ()=>{
+  if (!dragging) return;
+  const s = currentStep();
+  const P = s.P;
+  const dir = sub(dragging.p1, P);
+  dragging = null;
+
+  // Evaluate: compare drawn line direction to true normal line direction, modulo 180°
+  const aDraw = (deg(angleOf(dir)) + 360) % 360;
+  const aTrue = (deg(angleOf(s.normalLine)) + 360) % 360;
+  const diff = Math.min(angDiffDeg(aDraw, aTrue), angDiffDeg((aDraw+180)%360, aTrue));
+  const ok = diff <= s.tolDeg;
+
+  if (ok) setFeedback(`Correct. ${s.explain}`, true);
+  else setFeedback(`Not quite. Off by about ${fmt(diff,1)}°. ${s.explain}`, false);
+
+  revealAndScore(ok);
+});
+
+nextBtn.addEventListener("click", ()=>{
+  advanceOrNext();
+});
+skipBtn.addEventListener("click", ()=>{
+  loadChallenge();
+});
+
+/* =========================
+   Start
+========================= */
+loadChallenge();
+</script>
+</body>
+</html>

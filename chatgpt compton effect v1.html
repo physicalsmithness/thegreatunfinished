@@ -1,0 +1,960 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Compton Effect Interactive Demo</title>
+  <style>
+    :root{
+      --bg:#0b0e14;
+      --panel:#121827;
+      --panel2:#0f1523;
+      --text:#e7eefc;
+      --muted:#a9b6d6;
+      --grid:#26314d;
+      --accent:#6ee7ff;
+      --accent2:#a78bfa;
+      --warn:#ffd166;
+      --good:#8ef0a1;
+      --bad:#ff7a7a;
+      --shadow: 0 14px 40px rgba(0,0,0,.35);
+      --radius: 16px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: radial-gradient(1200px 800px at 20% 10%, #152040 0%, var(--bg) 55%);
+      color:var(--text);
+    }
+    header{
+      padding:22px 18px 10px;
+      max-width:1200px;
+      margin:0 auto;
+    }
+    h1{
+      margin:0 0 8px 0;
+      font-weight:720;
+      letter-spacing:.2px;
+      font-size: clamp(20px, 2.2vw, 28px);
+    }
+    header p{
+      margin:0;
+      color:var(--muted);
+      line-height:1.4;
+      max-width: 980px;
+    }
+
+    .wrap{
+      max-width:1200px;
+      margin: 14px auto 30px;
+      padding: 0 18px 30px;
+      display:grid;
+      grid-template-columns: 420px 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 980px){
+      .wrap{grid-template-columns: 1fr}
+    }
+
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card h2{
+      margin:0;
+      padding: 14px 16px 10px;
+      font-size: 14px;
+      letter-spacing: .3px;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      background: rgba(255,255,255,.02);
+    }
+    .card .content{ padding: 14px 16px 16px; }
+
+    .controls{
+      display:flex;
+      flex-direction:column;
+      gap: 12px;
+    }
+    .row{
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items:center;
+    }
+    .row label{
+      font-size: 13px;
+      color: var(--text);
+    }
+    .row .hint{
+      font-size:12px;
+      color: var(--muted);
+      margin-top:3px;
+      line-height:1.3;
+    }
+    .row .right{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      justify-content:flex-end;
+    }
+    input[type="range"]{ width: 100%; }
+    input[type="number"], select{
+      width: 140px;
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.10);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 8px 10px;
+      outline: none;
+    }
+    select{ width: 160px; }
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+
+    .toggleGroup{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+      justify-content:flex-start;
+    }
+    .chip{
+      display:inline-flex;
+      gap:8px;
+      align-items:center;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.03);
+      cursor:pointer;
+      user-select:none;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+    .chip input{ accent-color: var(--accent); }
+    .chip span{ color: var(--text); }
+
+    .stats{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .stat{
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(0,0,0,.16);
+    }
+    .stat .k{
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing:.25px;
+      margin-bottom: 6px;
+    }
+    .stat .v{
+      font-variant-numeric: tabular-nums;
+      font-size: 13.5px;
+      color: var(--text);
+      line-height: 1.25;
+      word-break: break-word;
+    }
+    .stat .v small{ color: var(--muted); font-size: 12px; }
+
+    .rightPane{
+      display:grid;
+      grid-template-rows: 360px 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 980px){
+      .rightPane{ grid-template-rows: 320px 1fr; }
+    }
+
+    canvas{
+      display:block;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(900px 500px at 40% 25%, rgba(110,231,255,.06), rgba(0,0,0,0) 65%),
+                  linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
+    }
+
+    .footerNote{
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .emph{ color: var(--accent); }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Compton Effect: angle, wavelength, target mass, and “different constants”</h1>
+  <p>
+    Uses the Compton shift
+    <span class="mono">Δλ = (h / (m c)) (1 − cos θ)</span>.
+    Adjust the controls to see why the effect is obvious for X/γ photons, tiny for visible light, and even smaller for protons.
+  </p>
+</header>
+
+<div class="wrap">
+  <!-- LEFT: Controls + readouts -->
+  <section class="card">
+    <h2>Controls</h2>
+    <div class="content">
+      <div class="controls">
+        <!-- Angle -->
+        <div>
+          <div class="row">
+            <div>
+              <label for="angle">Scattering angle θ (degrees)</label>
+              <div class="hint">0° is forward scattering; 180° is backscatter.</div>
+            </div>
+            <div class="right">
+              <input id="angleNum" type="number" min="0" max="180" step="0.1" />
+            </div>
+          </div>
+          <input id="angle" type="range" min="0" max="180" step="0.1" />
+        </div>
+
+        <!-- Wavelength (log slider) -->
+        <div>
+          <div class="row">
+            <div>
+              <label for="lambda">Incident wavelength λ (nm)</label>
+              <div class="hint">
+                Covers γ rays (0.001 nm) through visible (≈400–700 nm) out to IR (10,000 nm).
+              </div>
+            </div>
+            <div class="right">
+              <input id="lambdaNum" type="number" min="0.001" max="10000" step="0.1" />
+            </div>
+          </div>
+          <input id="lambda" type="range" min="0" max="1" step="0.0005" />
+        </div>
+
+        <!-- Target particle -->
+        <div class="row">
+          <div>
+            <label for="target">Scattering target</label>
+            <div class="hint">Electron vs proton mainly changes <span class="mono">h/(mc)</span>, i.e., the Compton wavelength.</div>
+          </div>
+          <div class="right">
+            <select id="target">
+              <option value="electron">Electron (m = 9.11×10⁻³¹ kg)</option>
+              <option value="proton">Proton (m = 1.67×10⁻²⁷ kg)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Planck constant multiplier (log) -->
+        <div>
+          <div class="row">
+            <div>
+              <label for="hScale">Effective Planck constant</label>
+              <div class="hint">
+                Scale <span class="mono">h</span> by powers of ten to see alternate “quantum-ness”.
+              </div>
+            </div>
+            <div class="right">
+              <input id="hExpNum" type="number" min="-6" max="12" step="0.1" />
+            </div>
+          </div>
+          <input id="hScale" type="range" min="-6" max="12" step="0.01" />
+          <div class="footerNote">
+            <span class="mono">h = h₀ × 10^k</span> with <span class="mono">h₀ = 6.62607015×10⁻³⁴ J·s</span>.
+          </div>
+        </div>
+
+        <!-- Plot options -->
+        <div>
+          <div class="row">
+            <div>
+              <label>Plot quantity (vs θ)</label>
+              <div class="hint">Frequency drop is <span class="mono">Δf = f − f′ ≥ 0</span>.</div>
+            </div>
+            <div class="right"></div>
+          </div>
+          <div class="toggleGroup">
+            <label class="chip"><input type="radio" name="metric" value="df" checked /> <span>Δf (Hz)</span></label>
+            <label class="chip"><input type="radio" name="metric" value="relDf" /> <span>Δf / f</span></label>
+            <label class="chip"><input type="radio" name="metric" value="dl" /> <span>Δλ (m)</span></label>
+            <label class="chip"><input type="radio" name="metric" value="relDl" /> <span>Δλ / λ</span></label>
+            <label class="chip"><input type="checkbox" id="logY" /> <span>log₁₀ y-axis</span></label>
+            <label class="chip"><input type="checkbox" id="showBoth" checked /> <span>show electron & proton</span></label>
+          </div>
+        </div>
+
+        <!-- Readouts -->
+        <div class="stats" id="stats"></div>
+
+        <div class="footerNote">
+          Tip: set λ to around <span class="mono">500 nm</span> and compare electron vs proton on <span class="mono">Δf/f</span>
+          to see how tiny it becomes.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT: Visual + Plot -->
+  <section class="rightPane">
+    <div class="card">
+      <h2>Scattering diagram</h2>
+      <canvas id="viz"></canvas>
+    </div>
+
+    <div class="card">
+      <h2>Change vs scattering angle</h2>
+      <canvas id="plot"></canvas>
+      <div class="content">
+        <div class="footerNote">
+          The curve is computed from <span class="mono">λ′ = λ + (h/(mc))(1 − cos θ)</span>,
+          then <span class="mono">f′ = c/λ′</span>.
+          For visible wavelengths, <span class="mono">Δλ</span> is vastly smaller than <span class="mono">λ</span>, so the plot can look flat unless you use a relative measure or log axis.
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  // Physical constants (SI)
+  const c = 299792458; // m/s
+  const h0 = 6.62607015e-34; // J*s (exact by definition)
+  const me = 9.1093837015e-31; // kg
+  const mp = 1.67262192369e-27; // kg
+  const eCharge = 1.602176634e-19; // J/eV (exact)
+
+  // DOM
+  const angle = document.getElementById('angle');
+  const angleNum = document.getElementById('angleNum');
+  const lambda = document.getElementById('lambda');
+  const lambdaNum = document.getElementById('lambdaNum');
+  const target = document.getElementById('target');
+  const hScale = document.getElementById('hScale');
+  const hExpNum = document.getElementById('hExpNum');
+  const stats = document.getElementById('stats');
+  const logY = document.getElementById('logY');
+  const showBoth = document.getElementById('showBoth');
+
+  const viz = document.getElementById('viz');
+  const plot = document.getElementById('plot');
+  const vizCtx = viz.getContext('2d');
+  const plotCtx = plot.getContext('2d');
+
+  // Helpers
+  function clamp(x, a, b){ return Math.max(a, Math.min(b, x)); }
+
+  function lerp(a,b,t){ return a + (b-a)*t; }
+
+  function fmtEng(x, unit = "", sig=4){
+    // Engineering-ish formatting with SI prefixes for readability
+    if (!isFinite(x)) return "—";
+    const abs = Math.abs(x);
+    if (abs === 0) return `0 ${unit}`.trim();
+    const prefixes = [
+      {p: -24, s:"y"}, {p:-21,s:"z"}, {p:-18,s:"a"}, {p:-15,s:"f"}, {p:-12,s:"p"},
+      {p: -9, s:"n"}, {p: -6, s:"µ"}, {p: -3, s:"m"}, {p: 0, s:""},
+      {p:  3, s:"k"}, {p:  6, s:"M"}, {p:  9, s:"G"}, {p: 12, s:"T"},
+      {p: 15, s:"P"}, {p: 18, s:"E"}, {p: 21, s:"Z"}, {p: 24, s:"Y"}
+    ];
+    const exp3 = Math.floor(Math.log10(abs) / 3) * 3;
+    const pref = prefixes.reduce((best,cur)=> Math.abs(cur.p-exp3)<Math.abs(best.p-exp3)?cur:best, prefixes[8]);
+    const scaled = x / Math.pow(10, pref.p);
+    const str = scaled.toPrecision(sig).replace(/\.0+$/,'').replace(/(\.\d*[1-9])0+$/,'$1');
+    return `${str} ${pref.s}${unit}`.trim();
+  }
+
+  function fmtSci(x, sig=4){
+    if (!isFinite(x)) return "—";
+    if (x === 0) return "0";
+    const s = x.toExponential(sig-1);
+    const [m,e] = s.split('e');
+    const exp = parseInt(e,10);
+    return `${m}×10^${exp}`;
+  }
+
+  function deg2rad(d){ return d * Math.PI / 180; }
+
+  // Map wavelength slider (0..1) to log10(lambda_nm) in [-3, 4]
+  const logLamMin = -3; // 0.001 nm
+  const logLamMax =  4; // 10000 nm
+
+  function sliderToLambdaNm(t){
+    const logNm = lerp(logLamMin, logLamMax, t);
+    return Math.pow(10, logNm);
+  }
+  function lambdaNmToSlider(nm){
+    const logNm = Math.log10(nm);
+    return (logNm - logLamMin) / (logLamMax - logLamMin);
+  }
+
+  function getMass(which){
+    return (which === "proton") ? mp : me;
+  }
+
+  function getH(){
+    const k = parseFloat(hScale.value);
+    return h0 * Math.pow(10, k);
+  }
+
+  function compton(lambda0_m, theta_rad, mass, h){
+    // Δλ = (h / (m c)) (1 - cos θ)
+    const dLambda = (h / (mass * c)) * (1 - Math.cos(theta_rad));
+    const lambdaP = lambda0_m + dLambda;
+    const f0 = c / lambda0_m;
+    const fP = c / lambdaP;
+
+    // Define positive "frequency drop" and wavelength increase
+    const dF = f0 - fP;             // >= 0
+    const relDF = dF / f0;
+    const relDL = dLambda / lambda0_m;
+
+    // Photon energies
+    const E0_J = h * f0;
+    const EP_J = h * fP;
+
+    return {
+      lambda0_m, lambdaP, dLambda,
+      f0, fP, dF, relDF, relDL,
+      E0_J, EP_J
+    };
+  }
+
+  // Canvas sizing for crisp rendering
+  function resizeCanvasToDisplaySize(canvas, ctx){
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.max(2, Math.floor(rect.width * dpr));
+    const h = Math.max(2, Math.floor(rect.height * dpr));
+    if (canvas.width !== w || canvas.height !== h){
+      canvas.width = w; canvas.height = h;
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+    }
+  }
+
+  // Drawing primitives
+  function drawArrow(ctx, x1,y1,x2,y2, color, width=2, head=10){
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+    ctx.stroke();
+
+    const dx = x2-x1, dy=y2-y1;
+    const ang = Math.atan2(dy,dx);
+    ctx.beginPath();
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2 - head*Math.cos(ang - Math.PI/7), y2 - head*Math.sin(ang - Math.PI/7));
+    ctx.lineTo(x2 - head*Math.cos(ang + Math.PI/7), y2 - head*Math.sin(ang + Math.PI/7));
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawGrid(ctx, x0,y0,w,h, step=40){
+    ctx.save();
+    ctx.strokeStyle = "rgba(38,49,77,.55)";
+    ctx.lineWidth = 1;
+    for(let x=x0; x<=x0+w; x+=step){
+      ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y0+h); ctx.stroke();
+    }
+    for(let y=y0; y<=y0+h; y+=step){
+      ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x0+w,y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawViz(state){
+    resizeCanvasToDisplaySize(viz, vizCtx);
+    const ctx = vizCtx;
+    const W = viz.getBoundingClientRect().width;
+    const H = viz.getBoundingClientRect().height;
+
+    ctx.clearRect(0,0,W,H);
+
+    // Background grid
+    drawGrid(ctx, 0,0,W,H, 44);
+
+    const cx = W*0.35;
+    const cy = H*0.55;
+
+    // Origin / scatter point
+    ctx.save();
+    ctx.fillStyle = "rgba(231,238,252,.9)";
+    ctx.beginPath();
+    ctx.arc(cx,cy,4,0,Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+
+    // Compute momenta for recoil vector (qualitative but physically based for photon momentum)
+    const pin = state.h / state.lambda0_m;       // magnitude h/λ
+    const pout = state.h / state.lambdaP;        // h/λ'
+    const theta = state.theta;
+
+    // Incoming photon along +x direction towards scatter point (from left)
+    // Momentum vectors (pointing to the right for incoming)
+    const vin = {x: 1, y: 0};
+    const vout = {x: Math.cos(theta), y: -Math.sin(theta)}; // up is negative y in canvas
+
+    // Recoil momentum vector = p_in - p_out (vector)
+    const prec = {
+      x: pin*vin.x - pout*vout.x,
+      y: pin*vin.y - pout*vout.y
+    };
+    const precMag = Math.hypot(prec.x,prec.y);
+
+    // Scale arrow lengths to fit nicely
+    const photonLen = Math.min(W,H) * 0.28;
+    const scatterLen = Math.min(W,H) * 0.30;
+
+    // Recoil arrow scaled relative to photon momentum change; clamp for readability
+    const recoilLen = clamp((precMag / pin) * photonLen, 0, photonLen*0.9);
+
+    // Incoming photon arrow
+    drawArrow(ctx, cx - photonLen, cy, cx, cy, "rgba(110,231,255,.95)", 3, 12);
+
+    // Scattered photon arrow
+    const sx = cx + scatterLen * vout.x;
+    const sy = cy + scatterLen * vout.y;
+    drawArrow(ctx, cx, cy, sx, sy, "rgba(167,139,250,.95)", 3, 12);
+
+    // Recoil arrow direction
+    let rx = cx, ry = cy;
+    if (precMag > 0){
+      const ux = prec.x/precMag, uy = prec.y/precMag;
+      rx = cx + recoilLen * ux;
+      ry = cy + recoilLen * (-uy); // convert to canvas y (since we used math y up)
+      // Careful: we defined vout with canvas y already; for recoil we used math-style y (up).
+      // We built prec using vout.y in canvas coordinates (negative is up), so prec.y is in canvas coords.
+      // That means we should NOT flip. Let's fix by rebuilding recoil properly:
+    }
+
+    // Rebuild recoil with consistent canvas coords:
+    const vinC = {x:1, y:0};
+    const voutC = {x: Math.cos(theta), y: -Math.sin(theta)}; // canvas coords
+    const precC = { x: pin*vinC.x - pout*voutC.x, y: pin*vinC.y - pout*voutC.y };
+    const precCMag = Math.hypot(precC.x,precC.y);
+    const recoilLen2 = clamp((precCMag / pin) * photonLen, 0, photonLen*0.9);
+    const uxC = (precCMag>0) ? (precC.x/precCMag) : 0;
+    const uyC = (precCMag>0) ? (precC.y/precCMag) : 0;
+    const rx2 = cx + recoilLen2 * uxC;
+    const ry2 = cy + recoilLen2 * uyC;
+    drawArrow(ctx, cx, cy, rx2, ry2, "rgba(142,240,161,.92)", 2.5, 10);
+
+    // Angle arc
+    ctx.save();
+    ctx.strokeStyle = "rgba(231,238,252,.35)";
+    ctx.lineWidth = 2;
+    const r = 52;
+    ctx.beginPath();
+    ctx.arc(cx,cy,r, 0, -theta, true);
+    ctx.stroke();
+
+    // Angle label
+    ctx.fillStyle = "rgba(231,238,252,.85)";
+    ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace";
+    ctx.fillText(`θ = ${state.thetaDeg.toFixed(1)}°`, cx + r + 10, cy - 6);
+    ctx.restore();
+
+    // Text legend
+    ctx.save();
+    ctx.font = "12.5px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+    ctx.fillStyle = "rgba(169,182,214,.95)";
+    const x0 = 14, y0 = 18;
+    const lines = [
+      ["incoming photon", "rgba(110,231,255,.95)"],
+      ["scattered photon", "rgba(167,139,250,.95)"],
+      ["recoil momentum (target)", "rgba(142,240,161,.92)"]
+    ];
+    lines.forEach((L,i)=>{
+      const yy = y0 + i*18;
+      ctx.fillStyle = L[1];
+      ctx.fillRect(x0, yy-10, 18, 3);
+      ctx.fillStyle = "rgba(169,182,214,.95)";
+      ctx.fillText(L[0], x0 + 26, yy-7);
+    });
+
+    // Quick “feel” numbers
+    ctx.fillStyle = "rgba(231,238,252,.9)";
+    ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace";
+    const info = [
+      `λ  = ${fmtEng(state.lambda0_m*1e9,"m",4)} (nm)`,
+      `λ′ = ${fmtEng(state.lambdaP*1e9,"m",4)} (nm)`,
+      `Δλ = ${fmtEng(state.dLambda,"m",4)}`,
+      `Δf = ${fmtEng(state.dF,"Hz",4)}`
+    ];
+    info.forEach((t,i)=> ctx.fillText(t, x0, H - 70 + i*16));
+    ctx.restore();
+  }
+
+  // Plotting
+  function computeSeries(metric, logAxis, lambda0_m, h, showBothCurves){
+    const N = 181; // 0..180 degrees
+    const series = [];
+
+    function yFrom(res){
+      switch(metric){
+        case "df":   return res.dF;
+        case "relDf":return res.relDF;
+        case "dl":   return res.dLambda;
+        case "relDl":return res.relDL;
+        default:     return res.dF;
+      }
+    }
+
+    const masses = showBothCurves ? [me, mp] : [getMass(target.value)];
+    const labels = showBothCurves ? ["electron", "proton"] : [target.value];
+
+    for (let i=0; i<masses.length; i++){
+      const m = masses[i];
+      const ys = new Array(N);
+      for (let deg=0; deg<=180; deg++){
+        const res = compton(lambda0_m, deg2rad(deg), m, h);
+        let y = yFrom(res);
+        if (logAxis){
+          // Avoid log(0). Use a tiny floor relative to typical magnitudes.
+          const floor = 1e-40;
+          y = Math.log10(Math.max(y, floor));
+        }
+        ys[deg] = y;
+      }
+      series.push({ label: labels[i], mass: m, ys });
+    }
+
+    return series;
+  }
+
+  function niceTicks(min, max, count=6){
+    // Simple linear tick generator
+    if (!isFinite(min) || !isFinite(max) || min === max) return {ticks:[min], step:1};
+    const span = max - min;
+    const raw = span / (count - 1);
+    const pow10 = Math.pow(10, Math.floor(Math.log10(Math.abs(raw))));
+    const options = [1,2,2.5,5,10].map(k=>k*pow10);
+    let step = options.reduce((best,cur)=> Math.abs(cur-raw)<Math.abs(best-raw)?cur:best, options[0]);
+    const start = Math.floor(min/step)*step;
+    const end = Math.ceil(max/step)*step;
+    const ticks = [];
+    for(let t=start; t<=end+0.5*step; t+=step) ticks.push(t);
+    return {ticks, step};
+  }
+
+  function drawPlot(state){
+    resizeCanvasToDisplaySize(plot, plotCtx);
+    const ctx = plotCtx;
+    const W = plot.getBoundingClientRect().width;
+    const H = plot.getBoundingClientRect().height;
+
+    ctx.clearRect(0,0,W,H);
+
+    const metric = document.querySelector('input[name="metric"]:checked').value;
+    const logAxis = logY.checked;
+    const both = showBoth.checked;
+
+    const sers = computeSeries(metric, logAxis, state.lambda0_m, state.h, both);
+
+    // Determine y-range
+    let yMin = Infinity, yMax = -Infinity;
+    for(const s of sers){
+      for(const y of s.ys){
+        if (isFinite(y)){ yMin = Math.min(yMin, y); yMax = Math.max(yMax, y); }
+      }
+    }
+    // Always include the selected point range
+    if (!isFinite(yMin) || !isFinite(yMax)) { yMin=0; yMax=1; }
+    if (yMin === yMax) { yMin -= 1; yMax += 1; }
+
+    // Layout
+    const padL = 62, padR = 18, padT = 18, padB = 44;
+    const x0 = padL, y0 = padT;
+    const pw = W - padL - padR;
+    const ph = H - padT - padB;
+
+    // Background grid
+    ctx.save();
+    ctx.strokeStyle = "rgba(38,49,77,.55)";
+    ctx.lineWidth = 1;
+    for(let i=0;i<=6;i++){
+      const x = x0 + (pw*i/6);
+      ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y0+ph); ctx.stroke();
+    }
+    for(let i=0;i<=5;i++){
+      const y = y0 + (ph*i/5);
+      ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x0+pw,y); ctx.stroke();
+    }
+    ctx.restore();
+
+    // Axes
+    ctx.save();
+    ctx.strokeStyle = "rgba(231,238,252,.55)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0); ctx.lineTo(x0, y0+ph); ctx.lineTo(x0+pw, y0+ph);
+    ctx.stroke();
+    ctx.restore();
+
+    const xFromDeg = (deg)=> x0 + (deg/180)*pw;
+    const yFromVal = (v)=> y0 + (1 - (v - yMin)/(yMax-yMin))*ph;
+
+    // Ticks + labels
+    ctx.save();
+    ctx.fillStyle = "rgba(169,182,214,.95)";
+    ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace";
+
+    // x ticks
+    for (const deg of [0,30,60,90,120,150,180]){
+      const x = xFromDeg(deg);
+      ctx.fillText(String(deg), x-7, y0+ph+22);
+    }
+    ctx.fillText("θ (degrees)", x0+pw-82, y0+ph+38);
+
+    // y ticks
+    const {ticks} = niceTicks(yMin, yMax, 6);
+    for(const t of ticks){
+      const y = yFromVal(t);
+      ctx.save();
+      ctx.strokeStyle = "rgba(231,238,252,.25)";
+      ctx.beginPath(); ctx.moveTo(x0-5,y); ctx.lineTo(x0+pw,y); ctx.stroke();
+      ctx.restore();
+
+      let label;
+      if (logAxis){
+        label = `10^${t.toFixed(1)}`;
+      } else {
+        // Metric-specific formatting
+        if (metric === "df") label = fmtEng(t, "Hz", 3);
+        else if (metric === "dl") label = fmtEng(t, "m", 3);
+        else label = t.toPrecision(3);
+      }
+      ctx.fillText(label, 6, y+4);
+    }
+
+    // y-axis title
+    const titleMap = {
+      df: "Δf = f − f′",
+      relDf: "Δf / f",
+      dl: "Δλ",
+      relDl: "Δλ / λ"
+    };
+    ctx.save();
+    ctx.translate(16, y0 + ph/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillStyle = "rgba(169,182,214,.95)";
+    ctx.fillText(logAxis ? `${titleMap[metric]} (log₁₀)` : titleMap[metric], 0, 0);
+    ctx.restore();
+
+    ctx.restore();
+
+    // Plot lines
+    function lineColor(label){
+      if (label === "electron") return "rgba(110,231,255,.95)";
+      if (label === "proton") return "rgba(167,139,250,.90)";
+      return "rgba(110,231,255,.95)";
+    }
+    function lineWidth(label){
+      // Emphasise currently selected target
+      const selected = target.value;
+      return (label === selected) ? 3 : 2;
+    }
+    function lineAlpha(label){
+      const selected = target.value;
+      return (showBoth.checked && label !== selected) ? 0.55 : 1.0;
+    }
+
+    for(const s of sers){
+      ctx.save();
+      ctx.strokeStyle = lineColor(s.label);
+      ctx.globalAlpha = lineAlpha(s.label);
+      ctx.lineWidth = lineWidth(s.label);
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      for(let deg=0; deg<=180; deg++){
+        const x = xFromDeg(deg);
+        const y = yFromVal(s.ys[deg]);
+        if (deg === 0) ctx.moveTo(x,y);
+        else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Current-angle markers
+    const deg = state.thetaDeg;
+    for(const s of sers){
+      ctx.save();
+      ctx.fillStyle = lineColor(s.label);
+      ctx.globalAlpha = lineAlpha(s.label);
+      const x = xFromDeg(deg);
+      const y = yFromVal(s.ys[Math.round(deg)]);
+      ctx.beginPath();
+      ctx.arc(x,y,4.2,0,Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Legend
+    ctx.save();
+    ctx.font = "12.5px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+    let lx = x0 + 12, ly = y0 + 14;
+    sers.forEach((s,i)=>{
+      ctx.fillStyle = lineColor(s.label);
+      ctx.globalAlpha = lineAlpha(s.label);
+      ctx.fillRect(lx, ly + i*18 - 10, 20, 3);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "rgba(231,238,252,.88)";
+      ctx.fillText(s.label, lx + 28, ly + i*18 - 7);
+    });
+    ctx.restore();
+  }
+
+  function updateStats(state){
+    const k = parseFloat(hScale.value);
+    const h = state.h;
+    const massName = target.value;
+
+    const lambdaNm0 = state.lambda0_m * 1e9;
+    const lambdaNmP = state.lambdaP * 1e9;
+    const dLambda = state.dLambda;
+    const dLambdaPm = dLambda * 1e12;
+
+    const f0 = state.f0;
+    const fP = state.fP;
+    const df = state.dF;
+
+    const E0_eV = state.E0_J / eCharge;
+    const EP_eV = state.EP_J / eCharge;
+
+    const m = getMass(massName);
+    const comptonLambda = h / (m*c); // m
+    const comptonPm = comptonLambda * 1e12;
+
+    const parts = [
+      {k:"Selected target", v: `${massName}`},
+      {k:"Effective h", v: `${fmtSci(h,4)} J·s  (k = ${k.toFixed(2)})`},
+      {k:"Incident λ", v: `${lambdaNm0.toPrecision(6)} nm`},
+      {k:"Scattered λ′", v: `${lambdaNmP.toPrecision(6)} nm`},
+      {k:"Wavelength shift Δλ", v: `${fmtEng(dLambda,"m",4)}  <small>(≈ ${dLambdaPm.toPrecision(4)} pm)</small>`},
+      {k:"Incident frequency f", v: `${fmtEng(f0,"Hz",4)}`},
+      {k:"Scattered frequency f′", v: `${fmtEng(fP,"Hz",4)}`},
+      {k:"Frequency drop Δf", v: `${fmtEng(df,"Hz",4)}  <small>(Δf/f = ${state.relDF.toExponential(3)})</small>`},
+      {k:"Photon energy E", v: `${fmtEng(E0_eV,"eV",4)}  <small>(≈ ${(E0_eV/1e3).toPrecision(4)} keV)</small>`},
+      {k:"Photon energy E′", v: `${fmtEng(EP_eV,"eV",4)}  <small>(≈ ${(EP_eV/1e3).toPrecision(4)} keV)</small>`},
+      {k:"Compton wavelength h/(mc)", v: `${fmtEng(comptonLambda,"m",4)}  <small>(≈ ${comptonPm.toPrecision(4)} pm)</small>`},
+      {k:"Max shift at 180°", v: `${fmtEng(2*comptonLambda,"m",4)}`},
+    ];
+
+    stats.innerHTML = parts.map(p => `
+      <div class="stat">
+        <div class="k">${p.k}</div>
+        <div class="v">${p.v}</div>
+      </div>
+    `).join("");
+  }
+
+  function getState(){
+    const thetaDeg = parseFloat(angle.value);
+    const theta = deg2rad(thetaDeg);
+
+    const lambdaNm = parseFloat(lambdaNum.value);
+    const lambda0_m = lambdaNm * 1e-9;
+
+    const h = getH();
+    const m = getMass(target.value);
+
+    const res = compton(lambda0_m, theta, m, h);
+    return {
+      thetaDeg,
+      theta,
+      h,
+      m,
+      ...res
+    };
+  }
+
+  function render(){
+    const state = getState();
+    updateStats(state);
+    drawViz(state);
+    drawPlot(state);
+  }
+
+  // Wire up syncing
+  function syncAngleFromSlider(){
+    angleNum.value = (+angle.value).toFixed(1);
+    render();
+  }
+  function syncAngleFromNum(){
+    const v = clamp(parseFloat(angleNum.value || "0"), 0, 180);
+    angle.value = v;
+    render();
+  }
+
+  function syncLambdaFromSlider(){
+    const nm = sliderToLambdaNm(parseFloat(lambda.value));
+    lambdaNum.value = nm;
+    render();
+  }
+  function syncLambdaFromNum(){
+    const nm = clamp(parseFloat(lambdaNum.value || "500"), 0.001, 10000);
+    lambda.value = clamp(lambdaNmToSlider(nm), 0, 1);
+    lambdaNum.value = nm;
+    render();
+  }
+
+  function syncHFromSlider(){
+    hExpNum.value = (+hScale.value).toFixed(2);
+    render();
+  }
+  function syncHFromNum(){
+    const k = clamp(parseFloat(hExpNum.value || "0"), -6, 12);
+    hScale.value = k;
+    render();
+  }
+
+  // Init defaults
+  angle.value = 60;
+  angleNum.value = "60.0";
+
+  // Start around visible green by default
+  lambdaNum.value = 500;
+  lambda.value = lambdaNmToSlider(500);
+
+  hScale.value = 0;
+  hExpNum.value = "0.00";
+
+  // Events
+  angle.addEventListener('input', syncAngleFromSlider);
+  angleNum.addEventListener('input', syncAngleFromNum);
+
+  lambda.addEventListener('input', syncLambdaFromSlider);
+  lambdaNum.addEventListener('input', syncLambdaFromNum);
+
+  hScale.addEventListener('input', syncHFromSlider);
+  hExpNum.addEventListener('input', syncHFromNum);
+
+  target.addEventListener('change', render);
+  logY.addEventListener('change', render);
+  showBoth.addEventListener('change', render);
+  document.querySelectorAll('input[name="metric"]').forEach(r => r.addEventListener('change', render));
+
+  window.addEventListener('resize', render);
+
+  render();
+})();
+</script>
+</body>
+</html>

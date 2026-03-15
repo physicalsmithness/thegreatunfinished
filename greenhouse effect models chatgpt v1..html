@@ -1,0 +1,1135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Greenhouse Effect Models — Resonance vs Molecular Energy Levels</title>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --panel:#0f1733;
+      --panel2:#0c132b;
+      --text:#e8edf9;
+      --muted:#b7c2e6;
+      --line:rgba(255,255,255,.12);
+      --accent:#7aa7ff;
+      --accent2:#7fffd4;
+      --warn:#ffcc66;
+      --danger:#ff6b6b;
+      --ok:#9cff7a;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 700px at 25% 15%, rgba(122,167,255,.15), transparent 55%),
+                  radial-gradient(900px 600px at 85% 30%, rgba(127,255,212,.09), transparent 55%),
+                  var(--bg);
+      color:var(--text);
+    }
+    header{
+      padding:20px 18px 10px;
+      max-width:1200px;
+      margin:0 auto;
+    }
+    h1{
+      margin:0 0 6px;
+      font-size:20px;
+      font-weight:700;
+      letter-spacing:.2px;
+    }
+    p{
+      margin:0;
+      color:var(--muted);
+      line-height:1.35;
+      font-size:13px;
+    }
+
+    .wrap{ max-width:1200px; margin:0 auto; padding:14px 18px 22px; }
+
+    .controls{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:12px;
+      display:grid;
+      gap:10px;
+      grid-template-columns: repeat(12, 1fr);
+      box-shadow: 0 12px 26px rgba(0,0,0,.24);
+    }
+    .control{
+      background: rgba(255,255,255,.03);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:12px;
+      padding:10px 10px 8px;
+      min-height:62px;
+    }
+    .control label{
+      display:flex;
+      align-items:baseline;
+      justify-content:space-between;
+      gap:10px;
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:6px;
+      user-select:none;
+    }
+    .control .value{
+      color:var(--text);
+      font-variant-numeric: tabular-nums;
+      font-size:12px;
+    }
+    input[type="range"]{ width:100%; }
+    select, button{
+      width:100%;
+      padding:8px 10px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.25);
+      color:var(--text);
+      outline:none;
+    }
+    button{
+      cursor:pointer;
+      background: linear-gradient(180deg, rgba(122,167,255,.35), rgba(122,167,255,.15));
+      border:1px solid rgba(122,167,255,.45);
+      font-weight:650;
+    }
+    button:hover{ filter:brightness(1.06); }
+
+    .grid{
+      margin-top:14px;
+      display:grid;
+      gap:12px;
+      grid-template-columns: 1fr 1fr;
+    }
+    @media (max-width: 980px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+
+    .panel{
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      border:1px solid var(--line);
+      border-radius:16px;
+      overflow:hidden;
+      box-shadow: 0 12px 26px rgba(0,0,0,.24);
+    }
+    .panel-head{
+      padding:10px 12px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      border-bottom:1px solid rgba(255,255,255,.09);
+      background: rgba(0,0,0,.18);
+    }
+    .panel-head h2{
+      margin:0;
+      font-size:13px;
+      letter-spacing:.2px;
+    }
+    .badge{
+      font-size:11px;
+      color: var(--muted);
+      padding:4px 8px;
+      border:1px solid rgba(255,255,255,.14);
+      border-radius:999px;
+      background: rgba(0,0,0,.15);
+      font-variant-numeric: tabular-nums;
+    }
+
+    canvas{
+      width:100%;
+      height:380px;
+      display:block;
+      background: linear-gradient(180deg, rgba(15,23,51,.55), rgba(12,19,43,.65));
+    }
+
+    .footer-note{
+      margin-top:12px;
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px dashed rgba(255,255,255,.18);
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.45;
+      background: rgba(0,0,0,.14);
+    }
+
+    .mono{ font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+    /* Make range inputs a bit nicer without external libraries */
+    input[type="range"]{
+      -webkit-appearance:none;
+      appearance:none;
+      height: 4px;
+      background: rgba(255,255,255,.16);
+      border-radius: 999px;
+      outline:none;
+    }
+    input[type="range"]::-webkit-slider-thumb{
+      -webkit-appearance:none;
+      appearance:none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.92);
+      border: 2px solid rgba(122,167,255,.9);
+      box-shadow: 0 0 0 5px rgba(122,167,255,.18);
+    }
+    input[type="range"]::-moz-range-thumb{
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.92);
+      border: 2px solid rgba(122,167,255,.9);
+      box-shadow: 0 0 0 5px rgba(122,167,255,.18);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Greenhouse effect: resonance model vs molecular energy levels</h1>
+    <p>
+      A side‑by‑side, conceptual visualisation of how greenhouse gases absorb infrared (IR) and then emit radiation in all directions.
+      Left: a classical driven‑oscillator (“resonance”) picture. Right: a quantised energy‑level picture (rotational/vibrational transitions).
+    </p>
+  </header>
+
+  <div class="wrap">
+    <div class="controls" id="controls">
+      <div class="control" style="grid-column: span 3;">
+        <label>
+          Gas
+          <span class="value" id="gasLabel">CO₂</span>
+        </label>
+        <select id="gasSelect" aria-label="Gas">
+          <option value="co2">CO₂ (carbon dioxide)</option>
+          <option value="h2o">H₂O (water vapour)</option>
+          <option value="ch4">CH₄ (methane)</option>
+          <option value="n2o">N₂O (nitrous oxide)</option>
+        </select>
+      </div>
+
+      <div class="control" style="grid-column: span 3;">
+        <label>
+          IR wavelength <span class="mono">λ</span>
+          <span class="value mono" id="lambdaVal">15.0 μm</span>
+        </label>
+        <input id="lambda" type="range" min="2" max="50" step="0.1" value="15" />
+      </div>
+
+      <div class="control" style="grid-column: span 3;">
+        <label>
+          Concentration (relative)
+          <span class="value mono" id="concVal">1.00×</span>
+        </label>
+        <input id="conc" type="range" min="0" max="3" step="0.01" value="1" />
+      </div>
+
+      <div class="control" style="grid-column: span 3;">
+        <label>
+          Path length
+          <span class="value mono" id="pathVal">1.0 km</span>
+        </label>
+        <input id="path" type="range" min="0.1" max="20" step="0.1" value="1" />
+      </div>
+
+      <div class="control" style="grid-column: span 3;">
+        <label>
+          Pressure / broadening
+          <span class="value mono" id="pressVal">0.40</span>
+        </label>
+        <input id="press" type="range" min="0" max="1" step="0.01" value="0.4" />
+      </div>
+
+      <div class="control" style="grid-column: span 3;">
+        <label>
+          Temperature
+          <span class="value mono" id="tempVal">288 K</span>
+        </label>
+        <input id="temp" type="range" min="180" max="330" step="1" value="288" />
+      </div>
+
+      <div class="control" style="grid-column: span 3;">
+        <label>
+          IR intensity (photon flux)
+          <span class="value mono" id="fluxVal">1.00×</span>
+        </label>
+        <input id="flux" type="range" min="0" max="3" step="0.01" value="1" />
+      </div>
+
+      <div class="control" style="grid-column: span 3;">
+        <label>
+          Collision rate (non‑radiative)
+          <span class="value mono" id="collVal">0.35</span>
+        </label>
+        <input id="coll" type="range" min="0" max="1" step="0.01" value="0.35" />
+      </div>
+
+      <div class="control" style="grid-column: span 2;">
+        <label>
+          Show labels
+          <span class="value" id="labelsVal">On</span>
+        </label>
+        <select id="labels" aria-label="Show labels">
+          <option value="on" selected>On</option>
+          <option value="off">Off</option>
+        </select>
+      </div>
+
+      <div class="control" style="grid-column: span 2;">
+        <label>
+          Reset
+          <span class="value"> </span>
+        </label>
+        <button id="resetBtn">Reset defaults</button>
+      </div>
+
+      <div class="control" style="grid-column: span 8;">
+        <label>
+          What you’re seeing
+          <span class="value">Conceptual (not to scale)</span>
+        </label>
+        <p>
+          Absorption peaks occur when <span class="mono">λ</span> matches an IR-active mode.
+          After absorption, energy can be re‑emitted as IR photons in random directions and/or transferred to thermal motion via collisions.
+        </p>
+      </div>
+    </div>
+
+    <div class="grid">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Resonance model (classical driven oscillator)</h2>
+          <div class="badge" id="resBadge">absorption: 0.00</div>
+        </div>
+        <canvas id="resCanvas" width="900" height="420"></canvas>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Molecular energy levels (quantised transitions)</h2>
+          <div class="badge" id="qmBadge">transmitted: 0% • absorbed: 0%</div>
+        </div>
+        <canvas id="qmCanvas" width="900" height="420"></canvas>
+      </section>
+    </div>
+
+    <div class="footer-note">
+      <strong>IB-style link:</strong> Both models tell the same story in different language.
+      The resonance model treats the molecule as a dipole oscillator that absorbs strongly near a natural frequency.
+      The energy‑level model treats absorption as a photon promoting a molecule between allowed rotational/vibrational levels.
+      In both cases, the excited molecule can emit in all directions (isotropically) and collisions can redistribute energy into thermal motion.
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ---- constants (for display; not used for full physical radiative-transfer) ----
+  const c = 2.99792458e8; // m/s
+
+  // Band centres in micrometres (very simplified; pedagogical)
+  const GAS = {
+    co2: {
+      label: 'CO₂',
+      bands_um: [4.3, 15.0],
+      strength: [0.55, 1.0],
+      colour: { a: 'rgba(122,167,255,0.95)', b: 'rgba(122,167,255,0.22)' }
+    },
+    h2o: {
+      label: 'H₂O',
+      bands_um: [2.7, 6.3, 18.0],
+      strength: [0.45, 0.95, 0.55],
+      colour: { a: 'rgba(127,255,212,0.92)', b: 'rgba(127,255,212,0.20)' }
+    },
+    ch4: {
+      label: 'CH₄',
+      bands_um: [3.3, 7.7],
+      strength: [0.55, 1.0],
+      colour: { a: 'rgba(156,255,122,0.92)', b: 'rgba(156,255,122,0.18)' }
+    },
+    n2o: {
+      label: 'N₂O',
+      bands_um: [4.5, 7.8, 17.0],
+      strength: [0.55, 0.85, 0.65],
+      colour: { a: 'rgba(255,204,102,0.92)', b: 'rgba(255,204,102,0.18)' }
+    }
+  };
+
+  // ---- UI elements ----
+  const el = {
+    gasSelect: document.getElementById('gasSelect'),
+    gasLabel: document.getElementById('gasLabel'),
+    lambda: document.getElementById('lambda'),
+    lambdaVal: document.getElementById('lambdaVal'),
+    conc: document.getElementById('conc'),
+    concVal: document.getElementById('concVal'),
+    path: document.getElementById('path'),
+    pathVal: document.getElementById('pathVal'),
+    press: document.getElementById('press'),
+    pressVal: document.getElementById('pressVal'),
+    temp: document.getElementById('temp'),
+    tempVal: document.getElementById('tempVal'),
+    flux: document.getElementById('flux'),
+    fluxVal: document.getElementById('fluxVal'),
+    coll: document.getElementById('coll'),
+    collVal: document.getElementById('collVal'),
+    labels: document.getElementById('labels'),
+    labelsVal: document.getElementById('labelsVal'),
+    resetBtn: document.getElementById('resetBtn'),
+    resCanvas: document.getElementById('resCanvas'),
+    qmCanvas: document.getElementById('qmCanvas'),
+    resBadge: document.getElementById('resBadge'),
+    qmBadge: document.getElementById('qmBadge')
+  };
+
+  const defaults = {
+    gas: 'co2',
+    lambda_um: 15.0,
+    conc: 1.0,
+    path_km: 1.0,
+    press: 0.40,
+    tempK: 288,
+    flux: 1.0,
+    coll: 0.35,
+    labels: 'on'
+  };
+
+  const state = {
+    gas: defaults.gas,
+    lambda_um: defaults.lambda_um,
+    conc: defaults.conc,
+    path_km: defaults.path_km,
+    press: defaults.press,
+    tempK: defaults.tempK,
+    flux: defaults.flux,
+    coll: defaults.coll,
+    labels: defaults.labels,
+
+    // resonance oscillator state
+    x: 0,
+    v: 0,
+
+    // QM photons and molecule state
+    photons: [],
+    heat: 0.0,
+    absorbedCount: 0,
+    escapedCount: 0,
+    emittedCount: 0,
+    t: 0,
+  };
+
+  function fmt(x, dp=2){ return Number(x).toFixed(dp); }
+
+  function setUIFromState(){
+    const g = GAS[state.gas];
+    el.gasLabel.textContent = g.label;
+    el.gasSelect.value = state.gas;
+
+    el.lambda.value = state.lambda_um;
+    el.lambdaVal.textContent = `${fmt(state.lambda_um,1)} μm`;
+
+    el.conc.value = state.conc;
+    el.concVal.textContent = `${fmt(state.conc,2)}×`;
+
+    el.path.value = state.path_km;
+    el.pathVal.textContent = `${fmt(state.path_km,1)} km`;
+
+    el.press.value = state.press;
+    el.pressVal.textContent = fmt(state.press,2);
+
+    el.temp.value = state.tempK;
+    el.tempVal.textContent = `${state.tempK} K`;
+
+    el.flux.value = state.flux;
+    el.fluxVal.textContent = `${fmt(state.flux,2)}×`;
+
+    el.coll.value = state.coll;
+    el.collVal.textContent = fmt(state.coll,2);
+
+    el.labels.value = state.labels;
+    el.labelsVal.textContent = (state.labels === 'on') ? 'On' : 'Off';
+  }
+
+  function reset(){
+    Object.assign(state, {
+      gas: defaults.gas,
+      lambda_um: defaults.lambda_um,
+      conc: defaults.conc,
+      path_km: defaults.path_km,
+      press: defaults.press,
+      tempK: defaults.tempK,
+      flux: defaults.flux,
+      coll: defaults.coll,
+      labels: defaults.labels,
+      x:0, v:0,
+      photons:[], heat:0,
+      absorbedCount:0, escapedCount:0, emittedCount:0,
+      t:0
+    });
+    setUIFromState();
+  }
+
+  // ---- model helpers ----
+
+  // A simple multi-peak absorption profile: sum of Gaussians in wavelength space.
+  // Width increases with pressure (broadening). Strength scales with concentration and path length.
+  function absorptionProfile(lambda_um){
+    const g = GAS[state.gas];
+    const baseWidth = 0.35 + 2.8 * state.press; // μm (pedagogical)
+    let a = 0;
+    for(let i=0;i<g.bands_um.length;i++){
+      const mu = g.bands_um[i];
+      const s = g.strength[i];
+      const z = (lambda_um - mu) / (baseWidth * (0.6 + 0.25*s));
+      a += s * Math.exp(-0.5*z*z);
+    }
+
+    // Beer-Lambert-ish scaling (conceptual)
+    const k = 0.55 * state.conc * Math.sqrt(state.path_km);
+    // Convert to [0,1) as an absorption probability-like value
+    const p = 1 - Math.exp(-k * a);
+    return Math.max(0, Math.min(0.999, p));
+  }
+
+  // Convert wavelength to angular frequency (for resonance oscillator)
+  function omegaFromLambda(lambda_um){
+    const lambda_m = lambda_um * 1e-6;
+    const f = c / lambda_m;        // Hz
+    const w = 2*Math.PI*f;         // rad/s
+    // rescale to a manageable number for animation (dimensionless time)
+    return w * 1e-14; // arbitrary scaling for display
+  }
+
+  function pickNearestBand(lambda_um){
+    const g = GAS[state.gas];
+    let best = 0;
+    let bestDist = Infinity;
+    for(let i=0;i<g.bands_um.length;i++){
+      const d = Math.abs(lambda_um - g.bands_um[i]);
+      if(d < bestDist){ bestDist = d; best = i; }
+    }
+    return { i: best, centre: g.bands_um[best], strength: g.strength[best] };
+  }
+
+  // ---- drawing helpers ----
+  function dprCanvas(canvas){
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.round(rect.width * dpr);
+    const h = Math.round(rect.height * dpr);
+    if(canvas.width !== w || canvas.height !== h){
+      canvas.width = w;
+      canvas.height = h;
+    }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, width: rect.width, height: rect.height };
+  }
+
+  function clearPanel(ctx, w, h){
+    ctx.clearRect(0,0,w,h);
+    // subtle vignette
+    const g = ctx.createRadialGradient(w*0.4,h*0.35,10, w*0.5,h*0.55, Math.max(w,h)*0.7);
+    g.addColorStop(0, 'rgba(255,255,255,0.05)');
+    g.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,w,h);
+  }
+
+  function text(ctx, x, y, s, colour='rgba(255,255,255,.85)', align='left'){
+    ctx.save();
+    ctx.fillStyle = colour;
+    ctx.font = '12px ui-sans-serif, system-ui';
+    ctx.textAlign = align;
+    ctx.fillText(s, x, y);
+    ctx.restore();
+  }
+
+  function mono(ctx, x, y, s, colour='rgba(255,255,255,.8)', align='left'){
+    ctx.save();
+    ctx.fillStyle = colour;
+    ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+    ctx.textAlign = align;
+    ctx.fillText(s, x, y);
+    ctx.restore();
+  }
+
+  function roundRect(ctx, x, y, w, h, r){
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr, y);
+    ctx.arcTo(x+w, y, x+w, y+h, rr);
+    ctx.arcTo(x+w, y+h, x, y+h, rr);
+    ctx.arcTo(x, y+h, x, y, rr);
+    ctx.arcTo(x, y, x+w, y, rr);
+    ctx.closePath();
+  }
+
+  // ---- Resonance panel ----
+  function drawResonance(dt){
+    const { ctx, width:w, height:h } = dprCanvas(el.resCanvas);
+    clearPanel(ctx, w, h);
+
+    const g = GAS[state.gas];
+    const abs = absorptionProfile(state.lambda_um);
+
+    // Oscillator parameters (dimensionless for animation)
+    const { centre, strength } = pickNearestBand(state.lambda_um);
+    const wDrive = omegaFromLambda(state.lambda_um);
+    const w0 = omegaFromLambda(centre);
+    const zeta = 0.05 + 0.35*state.press;   // damping ratio
+    const F0 = (0.35 + 0.85*state.flux) * (0.35 + 0.65*strength);
+
+    // Integrate driven damped oscillator: x'' + 2ζω0 x' + ω0^2 x = F0 sin(ωt)
+    // In our scaled units: treat dt in seconds-like units.
+    const dtSim = dt * 1.0;
+    const a = F0 * Math.sin(wDrive * state.t) - 2*zeta*w0*state.v - (w0*w0)*state.x;
+    state.v += a * dtSim;
+    state.x += state.v * dtSim;
+
+    // Estimate absorbed power ~ damping * v^2 (scaled)
+    const absorbedPower = Math.min(1, (zeta * state.v*state.v) / (0.9 + 3.2*(1+state.press)) );
+
+    // Draw incoming IR wave
+    const leftPad = 20;
+    const midY = h*0.52;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,.55)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for(let x=leftPad; x<w*0.56; x+=3){
+      const phase = (x-leftPad)/35 - state.t*2.2;
+      const y = midY + Math.sin(phase) * 18;
+      if(x===leftPad) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // Arrow indicating direction
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ctx.beginPath();
+    ctx.moveTo(w*0.56, midY);
+    ctx.lineTo(w*0.56-10, midY-6);
+    ctx.lineTo(w*0.56-10, midY+6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // Molecule as spring-mass dipole oscillator
+    const cx = w*0.72;
+    const cy = midY;
+    const amp = 52 * Math.tanh(state.x*0.9);
+
+    // spring
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,.25)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const x0 = cx-120;
+    const x1 = cx-20;
+    const coils = 9;
+    for(let i=0;i<=coils;i++){
+      const t = i/coils;
+      const x = x0 + (x1-x0)*t;
+      const y = cy + (i%2===0? -10: 10);
+      if(i===0) ctx.moveTo(x,cy);
+      else ctx.lineTo(x,y);
+    }
+    ctx.lineTo(x1,cy);
+    ctx.stroke();
+    ctx.restore();
+
+    // anchor wall
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,.18)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(cx-130, cy-45);
+    ctx.lineTo(cx-130, cy+45);
+    ctx.stroke();
+    ctx.restore();
+
+    // mass (oscillating)
+    ctx.save();
+    const colour = g.colour.a;
+    ctx.fillStyle = colour;
+    ctx.shadowColor = colour;
+    ctx.shadowBlur = 18;
+    roundRect(ctx, cx-20 + amp, cy-18, 40, 36, 10);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255,255,255,.25)';
+    ctx.stroke();
+    ctx.restore();
+
+    // Dipole moment indicator (charge separation)
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,.65)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx+amp, cy);
+    ctx.lineTo(cx+amp+55, cy);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.65)';
+    ctx.beginPath();
+    ctx.moveTo(cx+amp+55, cy);
+    ctx drawArrow(ctx, cx+amp+55, cy, 10, 6);
+    ctx.restore();
+
+    // small absorption curve inset
+    const inset = { x: 18, y: 18, w: 240, h: 110 };
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,.22)';
+    roundRect(ctx, inset.x, inset.y, inset.w, inset.h, 12);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.12)';
+    ctx.stroke();
+
+    // axes
+    ctx.strokeStyle = 'rgba(255,255,255,.18)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(inset.x+18, inset.y+inset.h-18);
+    ctx.lineTo(inset.x+inset.w-12, inset.y+inset.h-18);
+    ctx.moveTo(inset.x+18, inset.y+12);
+    ctx.lineTo(inset.x+18, inset.y+inset.h-18);
+    ctx.stroke();
+
+    // curve in wavelength range 2-50
+    const xMin=2, xMax=50;
+    ctx.strokeStyle = g.colour.a;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for(let i=0;i<=160;i++){
+      const lam = xMin + (xMax-xMin)*(i/160);
+      const a = absorptionProfile(lam);
+      const px = inset.x+18 + (inset.w-30)*( (lam-xMin)/(xMax-xMin) );
+      const py = inset.y+inset.h-18 - (inset.h-34) * a;
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.stroke();
+
+    // marker at chosen lambda
+    const mx = inset.x+18 + (inset.w-30)*((state.lambda_um-xMin)/(xMax-xMin));
+    const my = inset.y+inset.h-18 - (inset.h-34)*abs;
+    ctx.fillStyle = 'rgba(255,255,255,.9)';
+    ctx.beginPath();
+    ctx.arc(mx,my,4.2,0,Math.PI*2);
+    ctx.fill();
+
+    if(state.labels==='on'){
+      text(ctx, inset.x+12, inset.y+16, 'Absorption vs λ (conceptual)', 'rgba(255,255,255,.78)');
+      mono(ctx, inset.x+18, inset.y+inset.h-4, '2 μm', 'rgba(255,255,255,.45)', 'left');
+      mono(ctx, inset.x+inset.w-10, inset.y+inset.h-4, '50 μm', 'rgba(255,255,255,.45)', 'right');
+    }
+    ctx.restore();
+
+    // labels
+    if(state.labels==='on'){
+      text(ctx, 20, h-18, 'Incoming IR wave drives an IR‑active molecular mode. Near resonance → large response → strong absorption.', 'rgba(255,255,255,.78)');
+      mono(ctx, w-20, 26, `λ=${fmt(state.lambda_um,1)} μm  •  nearest band ≈ ${fmt(centre,1)} μm`, 'rgba(255,255,255,.72)', 'right');
+      mono(ctx, w-20, 44, `damping ζ=${fmt(zeta,2)}  •  drive ω∝1/λ  •  absorbed (scaled)=${fmt(absorbedPower,2)}`, 'rgba(255,255,255,.62)', 'right');
+    }
+
+    // badge: combine absorption probability and absorbed power (both conceptual)
+    const badgeVal = Math.max(abs, absorbedPower);
+    el.resBadge.textContent = `absorption: ${fmt(badgeVal,2)}`;
+  }
+
+  function drawArrow(ctx, x, y, len, halfHeight){
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x-len, y-halfHeight);
+    ctx.lineTo(x-len, y+halfHeight);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ---- QM panel ----
+  function spawnPhoton(w, h){
+    // photons enter from bottom heading upward
+    const x = 30 + Math.random()*(w-60);
+    const y = h - 10;
+    const vy = - (0.9 + 1.7*Math.random());
+    const vx = (Math.random()-0.5) * 0.25;
+    return {
+      x, y, vx, vy,
+      life: 0,
+      kind: 'incoming',
+      colour: 'rgba(255,255,255,.75)'
+    };
+  }
+
+  function spawnEmittedPhoton(x, y){
+    // isotropic emission (2D slice): random angle
+    const theta = Math.random() * Math.PI*2;
+    const speed = 0.9 + 1.2*Math.random();
+    return {
+      x, y,
+      vx: Math.cos(theta)*speed,
+      vy: Math.sin(theta)*speed,
+      life: 0,
+      kind: 'emitted',
+      colour: 'rgba(127,255,212,.75)'
+    };
+  }
+
+  function drawQM(dt){
+    const { ctx, width:w, height:h } = dprCanvas(el.qmCanvas);
+    clearPanel(ctx, w, h);
+
+    const g = GAS[state.gas];
+    const absP = absorptionProfile(state.lambda_um);
+
+    // Molecule box
+    const mol = { x: w*0.62, y: h*0.45, w: 220, h: 220 };
+
+    // Energy levels region
+    const levels = {
+      x: 26,
+      y: 26,
+      w: w*0.48,
+      h: h-52
+    };
+
+    // Decide a single representative transition (nearest band)
+    const nb = pickNearestBand(state.lambda_um);
+    const centre = nb.centre;
+
+    // linewidth scales with pressure
+    const widthUm = 0.35 + 2.8*state.press;
+    const detuning = Math.abs(state.lambda_um - centre);
+
+    // Conceptual absorption probability at molecule per photon
+    // Combine: absorption profile (line matching) + concentration/path
+    let pAbsorb = absP;
+
+    // Add temperature dependence: higher T → slightly faster emission, but absorption depends weakly.
+    // We'll keep absorption as-is, and use T for emission timing.
+
+    // Photon spawn rate (incoming from bottom)
+    const spawnRate = 18 * state.flux; // photons/sec in animation units
+    const expected = spawnRate * dt;
+    const nSpawn = Math.floor(expected) + (Math.random() < (expected - Math.floor(expected)) ? 1 : 0);
+
+    for(let i=0;i<nSpawn;i++) state.photons.push(spawnPhoton(w, h));
+
+    // molecule excitation / relaxation
+    // Track a simple excited state with a timer
+    if(state.excited == null){
+      state.excited = { on:false, t:0, pendingEmit:0 };
+    }
+
+    // Update photons
+    const newPhotons = [];
+
+    for(const p of state.photons){
+      p.life += dt;
+
+      // Move
+      p.x += p.vx * 60 * dt;
+      p.y += p.vy * 60 * dt;
+
+      // Incoming photons interact near molecule
+      if(p.kind === 'incoming'){
+        // drift towards the molecule region slightly
+        const pull = 0.015;
+        p.vx += ( (mol.x + mol.w*0.35) - p.x ) * pull * dt;
+
+        // Interaction zone
+        const zx = mol.x - 50;
+        const zy = mol.y - 50;
+        const zw = mol.w + 100;
+        const zh = mol.h + 100;
+
+        const inZone = (p.x>zx && p.x<zx+zw && p.y>zy && p.y<zy+zh);
+
+        if(inZone){
+          // Absorb with probability pAbsorb scaled by collision broadening/detuning
+          // Make detuning reduce absorption: Gaussian around centre
+          const z = detuning / (widthUm * (0.75 + 0.25*nb.strength));
+          const lineMatch = Math.exp(-0.5*z*z);
+          const pHere = Math.min(0.995, pAbsorb * (0.45 + 0.75*lineMatch));
+
+          if(Math.random() < pHere){
+            // absorbed: excite molecule
+            state.absorbedCount++;
+            state.excited.on = true;
+            state.excited.t = 0;
+
+            // Decide whether this excitation will produce IR emission or become heat via collisions
+            const nonRad = state.coll;
+            if(Math.random() < nonRad){
+              // Convert to heat quickly
+              state.heat = Math.min(1.0, state.heat + 0.015 + 0.02*Math.random());
+              state.excited.pendingEmit += 0; // no photon emitted
+            } else {
+              // Will emit after a short delay
+              state.excited.pendingEmit += 1;
+            }
+            continue; // photon removed
+          }
+        }
+
+        // If it reaches the top, it escaped (transmitted)
+        if(p.y < -15){
+          state.escapedCount++;
+          continue;
+        }
+      }
+
+      // emitted photons: remove if they leave bounds
+      if(p.kind === 'emitted'){
+        // slight fade
+        if(p.life > 2.2 && Math.random() < 0.05) continue;
+      }
+
+      if(p.x < -30 || p.x > w+30 || p.y < -40 || p.y > h+40) continue;
+
+      newPhotons.push(p);
+    }
+
+    state.photons = newPhotons;
+
+    // Excited state decay and emission
+    if(state.excited.on){
+      state.excited.t += dt;
+
+      // Radiative lifetime decreases mildly with temperature (purely visual)
+      const tau = 0.55 - 0.18 * Math.min(1, Math.max(0, (state.tempK-200)/130));
+      if(state.excited.t > Math.max(0.18, tau)){
+        // Emit all pending photons isotropically
+        const n = state.excited.pendingEmit;
+        for(let i=0;i<n;i++){
+          state.photons.push(spawnEmittedPhoton(mol.x + mol.w*0.5, mol.y + mol.h*0.55));
+          state.emittedCount++;
+        }
+        state.excited.pendingEmit = 0;
+        state.excited.on = false;
+      }
+    }
+
+    // Heat relaxes slowly
+    state.heat *= (1 - 0.10*dt);
+
+    // ---- draw: energy levels diagram ----
+    ctx.save();
+    // background box
+    ctx.fillStyle = 'rgba(0,0,0,.18)';
+    roundRect(ctx, levels.x, levels.y, levels.w, levels.h, 14);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.10)';
+    ctx.stroke();
+
+    const xL = levels.x + 26;
+    const xR = levels.x + levels.w - 26;
+    const yTop = levels.y + 34;
+    const yBot = levels.y + levels.h - 34;
+
+    // Draw vibrational levels v=0,1,2
+    const vib = [0,1,2];
+    const vibY = vib.map((v,i)=> yBot - (yBot-yTop) * (i/(vib.length-1)) );
+
+    // Rotational sublevels (few)
+    const J = [0,1,2,3];
+
+    for(let i=0;i<vib.length;i++){
+      const y = vibY[i];
+      ctx.strokeStyle = 'rgba(255,255,255,.35)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(xL, y);
+      ctx.lineTo(xR, y);
+      ctx.stroke();
+
+      // small sublevels as dots
+      for(let j=0;j<J.length;j++){
+        const t = (j+0.5)/J.length;
+        const x = xL + (xR-xL)*t;
+        ctx.fillStyle = 'rgba(255,255,255,.45)';
+        ctx.beginPath();
+        ctx.arc(x, y + (j%2===0? -8: 8)*0.15, 2.2, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      if(state.labels==='on'){
+        mono(ctx, levels.x+10, y+4, `v=${i}`, 'rgba(255,255,255,.65)');
+      }
+    }
+
+    // Choose an illustrative transition: v=0 -> v=1 for the nearest band
+    const y0 = vibY[0];
+    const y1 = vibY[1];
+
+    // Transition arrow colour indicates line match
+    const z = detuning / (widthUm * (0.75 + 0.25*nb.strength));
+    const lineMatch = Math.exp(-0.5*z*z);
+    const arrowAlpha = 0.25 + 0.75*lineMatch;
+
+    ctx.strokeStyle = `rgba(122,167,255,${arrowAlpha.toFixed(3)})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    const ax = levels.x + levels.w*0.65;
+    ctx.moveTo(ax, y0);
+    ctx.lineTo(ax, y1);
+    ctx.stroke();
+
+    // arrow head
+    ctx.fillStyle = `rgba(122,167,255,${arrowAlpha.toFixed(3)})`;
+    ctx.beginPath();
+    ctx.moveTo(ax, y1);
+    ctx.lineTo(ax-8, y1+12);
+    ctx.lineTo(ax+8, y1+12);
+    ctx.closePath();
+    ctx.fill();
+
+    if(state.labels==='on'){
+      text(ctx, levels.x+14, levels.y+18, 'Allowed IR-active transition (illustrative)', 'rgba(255,255,255,.78)');
+      mono(ctx, levels.x+14, levels.y+36, `nearest band ≈ ${fmt(centre,1)} μm  •  detuning = ${fmt(detuning,2)} μm`, 'rgba(255,255,255,.60)');
+      mono(ctx, levels.x+14, levels.y+54, `line width (pressure) ≈ ${fmt(widthUm,2)} μm  •  line match ≈ ${fmt(lineMatch,2)}`, 'rgba(255,255,255,.58)');
+    }
+
+    ctx.restore();
+
+    // ---- draw: molecule + emission directions ----
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,.18)';
+    roundRect(ctx, mol.x, mol.y, mol.w, mol.h, 16);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.10)';
+    ctx.stroke();
+
+    const cx = mol.x + mol.w*0.5;
+    const cy = mol.y + mol.h*0.55;
+
+    const glow = state.excited.on ? g.colour.a : 'rgba(255,255,255,.60)';
+    ctx.fillStyle = glow;
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = state.excited.on ? 22 : 10;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 32, 0, Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // emission "all directions" rays (when excited)
+    if(state.excited.on){
+      ctx.strokeStyle = 'rgba(127,255,212,.28)';
+      ctx.lineWidth = 2;
+      for(let i=0;i<16;i++){
+        const ang = (i/16)*Math.PI*2;
+        const r1 = 38;
+        const r2 = 68;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(ang)*r1, cy + Math.sin(ang)*r1);
+        ctx.lineTo(cx + Math.cos(ang)*r2, cy + Math.sin(ang)*r2);
+        ctx.stroke();
+      }
+    }
+
+    // heat meter
+    const hx = mol.x + 18;
+    const hy = mol.y + 20;
+    const hw = 18;
+    const hh = mol.h - 40;
+
+    ctx.fillStyle = 'rgba(255,255,255,.10)';
+    roundRect(ctx, hx, hy, hw, hh, 10);
+    ctx.fill();
+
+    const fillH = hh * state.heat;
+    ctx.fillStyle = `rgba(255,107,107,${(0.35+0.55*state.heat).toFixed(3)})`;
+    roundRect(ctx, hx, hy + (hh-fillH), hw, fillH, 10);
+    ctx.fill();
+
+    if(state.labels==='on'){
+      text(ctx, mol.x+12, mol.y-10, 'Molecule + re‑emission', 'rgba(255,255,255,.78)');
+      mono(ctx, mol.x+14, mol.y + mol.h + 18, `collisions → heat (non‑radiative): ${fmt(state.coll,2)}`, 'rgba(255,255,255,.62)');
+      mono(ctx, mol.x + mol.w - 12, mol.y + 22, `T=${state.tempK} K`, 'rgba(255,255,255,.70)', 'right');
+      text(ctx, hx+hw+10, hy+12, 'heat', 'rgba(255,255,255,.62)');
+    }
+
+    ctx.restore();
+
+    // ---- draw: photons ----
+    ctx.save();
+    for(const p of state.photons){
+      ctx.fillStyle = p.kind==='incoming' ? 'rgba(255,255,255,.65)' : p.colour;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.kind==='incoming' ? 2.4 : 2.1, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // ---- badge: simple running fractions ----
+    const total = state.absorbedCount + state.escapedCount;
+    const absorbedPct = total>0 ? Math.round(100*state.absorbedCount/total) : 0;
+    const escapedPct  = total>0 ? Math.round(100*state.escapedCount/total) : 0;
+    el.qmBadge.textContent = `transmitted: ${escapedPct}% • absorbed: ${absorbedPct}%`;
+
+    // explanatory caption
+    if(state.labels==='on'){
+      text(ctx, 20, h-18, 'Photons matching an allowed transition are absorbed; the excited molecule may emit IR in random directions or lose energy by collisions.', 'rgba(255,255,255,.78)');
+    }
+  }
+
+  // ---- animation loop ----
+  let last = performance.now();
+  function tick(now){
+    const dt = Math.min(0.05, (now-last)/1000);
+    last = now;
+    state.t += dt;
+
+    drawResonance(dt);
+    drawQM(dt);
+
+    requestAnimationFrame(tick);
+  }
+
+  // ---- wire up UI ----
+  function onInput(){
+    state.gas = el.gasSelect.value;
+    state.lambda_um = parseFloat(el.lambda.value);
+    state.conc = parseFloat(el.conc.value);
+    state.path_km = parseFloat(el.path.value);
+    state.press = parseFloat(el.press.value);
+    state.tempK = parseInt(el.temp.value, 10);
+    state.flux = parseFloat(el.flux.value);
+    state.coll = parseFloat(el.coll.value);
+    state.labels = el.labels.value;
+
+    // Update labels
+    setUIFromState();
+
+    // Nudge oscillator state when parameters change (avoid huge jumps)
+    state.v *= 0.85;
+    state.x *= 0.85;
+  }
+
+  ['change','input'].forEach(evt => {
+    el.gasSelect.addEventListener(evt, onInput);
+    el.lambda.addEventListener(evt, onInput);
+    el.conc.addEventListener(evt, onInput);
+    el.path.addEventListener(evt, onInput);
+    el.press.addEventListener(evt, onInput);
+    el.temp.addEventListener(evt, onInput);
+    el.flux.addEventListener(evt, onInput);
+    el.coll.addEventListener(evt, onInput);
+    el.labels.addEventListener(evt, onInput);
+  });
+
+  el.resetBtn.addEventListener('click', reset);
+
+  window.addEventListener('resize', () => {
+    // force redraw at next frame by updating DPR canvas sizes
+    // (handled automatically in draw functions)
+  });
+
+  // initialise
+  reset();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

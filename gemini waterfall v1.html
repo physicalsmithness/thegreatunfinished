@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { background: #222; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
+        canvas { border: 2px solid #555; background: #000; cursor: crosshair; }
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 20px; background: #333; border-radius: 8px; margin-top: 10px; }
+        label { font-size: 12px; }
+        button { grid-column: span 2; padding: 10px; background: #068; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #08a; }
+    </style>
+</head>
+<body>
+    <h2>Geological Waterfall Simulator</h2>
+    <canvas id="sim" width="600" height="400"></canvas>
+    
+    <div class="controls">
+        <label>Erosion Rate: <input type="range" id="erosion" min="0" max="100" value="30"></label>
+        <label>Water Flow: <input type="range" id="flow" min="1" max="20" value="5"></label>
+        <label>Hard Rock Resistance: <input type="range" id="hardResist" min="1" max="100" value="90"></label>
+        <label>Soft Rock Resistance: <input type="range" id="softResist" min="1" max="100" value="10"></label>
+        <button onclick="resetSim()">Reset Terrain</button>
+        <p style="grid-column: span 2; font-size: 11px; color: #ccc;">Water flows from left to right. Dark gray = Hard Rock, Light brown = Soft Rock. Watch for undercutting!</p>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('sim');
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+        const cellSize = 4;
+        const cols = width / cellSize;
+        const rows = height / cellSize;
+
+        let terrain = []; // 0: Air, 1: Hard Rock, 2: Soft Rock
+        let water = [];   // Amount of water in cell
+
+        function resetSim() {
+            terrain = [];
+            water = new Array(cols * rows).fill(0);
+            for (let i = 0; i < cols * rows; i++) {
+                let x = (i % cols);
+                let y = Math.floor(i / cols);
+                
+                // Initial landscape: A high plateau on the left
+                if (y > rows * 0.4) {
+                    if (x < cols * 0.3) {
+                        // Hard cap rock on top
+                        terrain[i] = (y < rows * 0.5) ? 1 : 2;
+                    } else if (y > rows * 0.8) {
+                        terrain[i] = 2; // Bottom basin
+                    } else {
+                        terrain[i] = 0;
+                    }
+                } else {
+                    terrain[i] = 0;
+                }
+            }
+        }
+
+        function update() {
+            const erosionRate = document.getElementById('erosion').value / 1000;
+            const flowRate = parseInt(document.getElementById('flow').value);
+            const hResist = document.getElementById('hardResist').value / 100;
+            const sResist = document.getElementById('softResist').value / 100;
+
+            // 1. Add water at source
+            for(let f = 0; f < flowRate; f++) {
+                water[Math.floor(rows * 0.35) * cols] += 1;
+            }
+
+            // 2. Physics & Erosion
+            for (let i = cols * rows - 1; i >= 0; i--) {
+                if (water[i] <= 0) continue;
+
+                let x = i % cols;
+                let y = Math.floor(i / cols);
+                let below = i + cols;
+                let right = i + 1;
+
+                // Move Water
+                if (y < rows - 1 && terrain[below] === 0) {
+                    // Fall down
+                    let move = Math.min(water[i], 1);
+                    water[below] += move;
+                    water[i] -= move;
+                } else if (x < cols - 1 && terrain[right] === 0) {
+                    // Flow right
+                    let move = Math.min(water[i], 0.5);
+                    water[right] += move;
+                    water[i] -= move;
+                }
+
+                // Erode Terrain
+                let target = (y < rows - 1 && terrain[below] !== 0) ? below : (x < cols - 1 ? right : -1);
+                if (target !== -1 && terrain[target] > 0) {
+                    let resistance = (terrain[target] === 1) ? hResist : sResist;
+                    if (Math.random() > resistance) {
+                        terrain[target] = 0; // Turn rock to air
+                    }
+                }
+                
+                // Evaporate / Remove water at edge
+                if (x >= cols - 2 || y >= rows - 2) water[i] = 0;
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+            for (let i = 0; i < cols * rows; i++) {
+                if (terrain[i] === 0 && water[i] <= 0) continue;
+
+                let x = (i % cols) * cellSize;
+                let y = Math.floor(i / cols) * cellSize;
+
+                if (terrain[i] === 1) ctx.fillStyle = '#555'; // Hard Rock
+                else if (terrain[i] === 2) ctx.fillStyle = '#864'; // Soft Rock
+                else if (water[i] > 0) ctx.fillStyle = `rgba(0, 150, 255, ${Math.min(water[i], 1)})`;
+
+                ctx.fillRect(x, y, cellSize, cellSize);
+            }
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        resetSim();
+        loop();
+    </script>
+</body>
+</html>

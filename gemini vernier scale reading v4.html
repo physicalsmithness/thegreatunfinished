@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Precision Metrology Simulator</title>
+    <style>
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #eef2f3; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 700px; text-align: center; }
+        h2 { margin: 0 0 10px 0; color: #2c3e50; }
+        .instructions { color: #7f8c8d; font-size: 0.9em; margin-bottom: 20px; }
+        
+        /* The instrument canvas */
+        svg { background: #fff; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 20px; user-select: none; }
+        
+        .controls { display: flex; justify-content: center; gap: 10px; align-items: center; }
+        input { padding: 12px; font-size: 18px; width: 120px; text-align: center; border: 2px solid #bdc3c7; border-radius: 6px; }
+        input:focus { border-color: #3498db; outline: none; }
+        
+        button { padding: 12px 24px; font-size: 16px; font-weight: 600; cursor: pointer; border: none; border-radius: 6px; transition: 0.2s; }
+        .btn-check { background: #2ecc71; color: white; }
+        .btn-check:hover { background: #27ae60; }
+        .btn-skip { background: #95a5a6; color: white; }
+        .btn-skip:hover { background: #7f8c8d; }
+        
+        .feedback-area { height: 40px; margin-top: 15px; font-weight: bold; font-size: 1.1em; }
+        .correct { color: #27ae60; }
+        .wrong { color: #c0392b; }
+        
+        .scoreboard { position: absolute; top: 20px; right: 20px; background: #34495e; color: white; padding: 10px 20px; border-radius: 20px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="scoreboard">Score: <span id="score">0</span></div>
+
+<div class="container">
+    <h2 id="tool-title">Metric Micrometer (0.01mm)</h2>
+    <p class="instructions" id="tool-desc">Read the main scale (0.5mm pitch) + Thimble (0.01mm).</p>
+    
+    <svg id="canvas" width="600" height="220" viewBox="0 0 600 220"></svg>
+
+    <div class="controls">
+        <input type="number" id="user-input" placeholder="0.00" step="any">
+        <button class="btn-check" onclick="checkAnswer()">Submit Reading</button>
+        <button class="btn-skip" onclick="switchMode()">Switch Tool / Next</button>
+    </div>
+    
+    <div class="feedback-area" id="feedback"></div>
+</div>
+
+<script>
+    // --- Configuration ---
+    const PIXELS_PER_MM = 40; // Unified scaling factor
+    const OFFSET_X = 50;      // Start of the scale on screen
+    
+    let currentMode = 'micrometer'; // 'micrometer' or 'caliper'
+    let targetValue = 0;
+    let score = 0;
+
+    const canvas = document.getElementById('canvas');
+    const input = document.getElementById('user-input');
+    const feedback = document.getElementById('feedback');
+
+    // --- Drawing Logic ---
+
+    function drawMicrometer() {
+        // Setup Logic
+        document.getElementById('tool-title').textContent = "Metric Micrometer (0.01mm)";
+        document.getElementById('tool-desc').textContent = "Top marks: 1mm | Bottom marks: 0.5mm | Thimble: 0.01mm";
+        input.step = "0.01";
+        input.value = "";
+        
+        // Generate random value (Max 12mm)
+        // Ensure it lands cleanly on 0.01 steps
+        let rawVal = (Math.random() * 12);
+        targetValue = Math.round(rawVal * 100) / 100;
+        
+        // Visual Calculations
+        // The edge of the thimble is exactly at targetValue
+        const thimbleEdgeX = OFFSET_X + (targetValue * PIXELS_PER_MM);
+        
+        let svg = `<defs><clipPath id="scaleClip"><rect x="0" y="0" width="${thimbleEdgeX}" height="220"/></clipPath></defs>`;
+
+        // 1. Draw Main Scale (Sleeve) - Clipped by thimble
+        svg += `<g clip-path="url(#scaleClip)">`;
+        svg += `<line x1="${OFFSET_X}" y1="110" x2="600" y2="110" stroke="black" stroke-width="2"/>`; // datum line
+        
+        // Draw ticks up to 15mm (plenty of space)
+        for(let i=0; i<=15; i+=0.5) {
+            let x = OFFSET_X + (i * PIXELS_PER_MM);
+            if(Number.isInteger(i)) {
+                // 1mm Mark (Top)
+                svg += `<line x1="${x}" y1="110" x2="${x}" y2="85" stroke="black" stroke-width="2"/>`;
+                svg += `<text x="${x}" y="75" text-anchor="middle" font-size="14" font-family="Arial">${i}</text>`;
+            } else {
+                // 0.5mm Mark (Bottom)
+                svg += `<line x1="${x}" y1="110" x2="${x}" y2="135" stroke="black" stroke-width="2"/>`;
+            }
+        }
+        svg += `</g>`; // End Scale Group
+
+        // 2. Draw Thimble (The moving part)
+        // Positioned exactly at thimbleEdgeX
+        let thimbleGroup = `<g transform="translate(${thimbleEdgeX}, 0)">`;
+        
+        // Thimble Body
+        thimbleGroup += `<rect x="0" y="40" width="150" height="140" fill="#bdc3c7" stroke="#7f8c8d" stroke-width="2"/>`;
+        thimbleGroup += `<line x1="0" y1="40" x2="0" y2="180" stroke="#c0392b" stroke-width="3"/>`; // Red Reading Edge
+        
+        // Thimble Markings (0 to 50)
+        // We need to calculate which number is facing the user (at y=110)
+        // The thimble rotates. Value 0.00 -> 0 is at center. 0.25 -> 25 is at center.
+        // We show a window of markings.
+        
+        let decimalPart = targetValue % 0.5; // 0.00 to 0.49
+        let centerTick = Math.round(decimalPart * 100); // e.g. 23
+        
+        // Draw ticks surrounding the center
+        for(let offset = -6

@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Activities Simulator v4</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 20px; background: #1a1a2e; color: #fff; }
+        .container { max-width: 950px; margin: 0 auto; }
+        canvas { background: #16213e; border: 2px solid #0f3460; border-radius: 8px; margin-bottom: 5px; display: block; width: 100%; }
+        .panel { padding: 15px; background: #0f3460; border-radius: 8px; margin-bottom: 20px; }
+        .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
+        label { display: block; font-size: 0.85em; margin-bottom: 5px; color: #4facf7; font-weight: bold; }
+        input[type="range"] { width: 100%; accent-color: #4facf7; }
+        .value-display { float: right; color: #fff; font-weight: normal; }
+        select, button { padding: 10px; background: #4facf7; color: #1a1a2e; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; width: 100%; font-weight: bold; }
+        select:hover, button:hover { background: #3a8cd9; }
+        .btn-group { display: flex; gap: 10px; }
+        button#playBtn { background: #4caf50; color: white; font-size: 1.1em; flex: 1; }
+        button#playBtn:hover { background: #45a049; }
+        button#hitBtn { background: #e94560; color: white; font-size: 1.1em; flex: 1; display: none; }
+        button#hitBtn:hover { background: #d03b55; }
+        h2 { margin-top: 0; font-size: 1.2em; color: #4facf7; margin-bottom: 10px; }
+        .shot-controls { display: grid; grid-template-columns: 1fr 1fr 1.5fr; gap: 15px; margin-bottom: 20px; align-items: flex-end; }
+        .metrics-bar { display: flex; justify-content: space-between; background: #0b1a30; padding: 10px; border-radius: 5px; font-size: 0.85em; margin-bottom: 10px; color: #a2a8d3;}
+        .metrics-bar span { color: #fff; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Off-World Physics Simulator v4</h1>
+    
+    <div class="shot-controls">
+        <div>
+            <label>Activity</label>
+            <select id="activityType">
+                <option value="jump">Star Jump</option>
+                <option value="bike">Riding Bike Off Ramp</option>
+                <option value="pillow">Bouncy Bed Pillow Fight</option>
+            </select>
+        </div>
+        <div>
+            <label>Exertion / Power <span id="effortVal" class="value-display">1.0x</span></label>
+            <input type="range" id="effort" min="0.5" max="2.0" step="0.1" value="1.0">
+        </div>
+        <div class="btn-group">
+            <button id="playBtn">Play Action</button>
+            <button id="hitBtn">WHACK!</button>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Earth (Standard)</h2>
+        <canvas id="earthCanvas" width="900" height="250"></canvas>
+        <div class="metrics-bar" id="earthMetrics">
+            <div>Launch: <span id="e_launch">0.0 m/s</span></div>
+            <div>Impact: <span id="e_impact">0.0 m/s</span></div>
+            <div>Flight Time: <span id="e_time">0.00 s</span></div>
+            <div>Distance: <span id="e_dist">0.0 m</span></div>
+            <div>Apex: <span id="e_apex">0.0 m</span></div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Custom Space Environment</h2>
+        <canvas id="spaceCanvas" width="900" height="250"></canvas>
+        <div class="metrics-bar" id="spaceMetrics">
+            <div>Launch: <span id="s_launch">0.0 m/s</span></div>
+            <div>Impact: <span id="s_impact">0.0 m/s</span></div>
+            <div>Flight Time: <span id="s_time">0.00 s</span></div>
+            <div>Distance: <span id="s_dist">0.0 m</span></div>
+            <div>Apex: <span id="s_apex">0.0 m</span></div>
+        </div>
+        <div class="controls">
+            <div>
+                <label>Visual Zoom Level <span id="zoomVal" class="value-display">1.0x</span></label>
+                <input type="range" id="zoom" min="0.2" max="2.0" step="0.1" value="1.0">
+            </div>
+            <div>
+                <label>Gravity (m/s²) <span id="gravityVal" class="value-display">9.8</span></label>
+                <input type="range" id="gravity" min="0.5" max="25" step="0.1" value="9.8">
+            </div>
+            <div>
+                <label>Air Density (kg/m³) <span id="densityVal" class="value-display">1.23</span></label>
+                <input type="range" id="density" min="0" max="3" step="0.01" value="1.23">
+            </div>
+            <div>
+                <label>Mass Multiplier <span id="massMultVal" class="value-display">1.0x</span></label>
+                <input type="range" id="massMult" min="0.1" max="5.0" step="0.1" value="1.0">
+            </div>
+            <div>
+                <label>Bed Spring Const (k) <span id="springVal" class="value-display">3000</span></label>
+                <input type="range" id="spring" min="500" max="8000" step="100" value="3000">
+            </div>
+            <div>
+                <label>Bed Friction Coefficient (&mu;) <span id="muVal" class="value-display">0.40</span></label>
+                <input type="range" id="mu" min="0.0" max="1.0" step="0.05" value="0.40">
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const CANVAS_W = 900;
+    const CANVAS_H = 250;
+    const GROUND_Y = 220;
+    const BASE_PPM = 25; 
+
+    class Simulation {
+        constructor(canvasId, isEarth) {
+            this.canvas = document.getElementById(canvasId);
+            this.ctx = this.canvas.getContext('2d');
+            this.isEarth = isEarth;
+            
+            this.g = 9.81;
+            this.rho = 1.225;
+            this.springK = 3000;
+            this.cor = 0.6;
+            this.mu = 0.4; // Limiting friction coefficient
+            this.zoom = 1.0;
+            
+            this.playing = false;
+            this.resetSim(false);
+        }
+
+        syncState() {
+            this.zoom = parseFloat(document.getElementById('zoom').value);
+            if (!this.isEarth) {
+                this.g = parseFloat(document.getElementById('gravity').value);
+                this.rho = parseFloat(document.getElementById('density').value);
+                this.massMult = parseFloat(document.getElementById('massMult').value);
+                this.springK = parseFloat(document.getElementById('spring').value);
+                this.mu = parseFloat(document.getElementById('mu').value);
+            } else {
+                this.massMult = 1.0;
+                this.springK = 3000;
+                this.mu = 0.4;
+            }
+        }
+
+        resetSim(playState) {
+            this.syncState();
+            this.type = document.getElementById('activityType').value;
+            this.effort = parseFloat(document.getElementById('effort').value);
+            
+            this.entities = [];
+            this.time = 0;
+            this.playing = playState;
+            this.active = true;
+            this.targetEntity = 0;
+
+            if (this.type === 'jump') {
+                this.entities.push({
+                    id: 'jumper', x: 0, y: 0, vx: 0, vy: playState ? 4.5 * this.effort : 0,
+                    mass: 70 * this.massMult, area: 0.5, cd: 1.0,
+                    path: [], launchSpeed: playState ? 4.5 * this.effort : 0, impactSpeed: 0, flightTime: 0, maxDist: 0, apex: 0, startX: 0, airborne: playState
+                });
+            } 
+            else if (this.type === 'bike') {
+                this.entities.push({
+                    id: 'biker', x: -15, y: 0, vx: 0, vy: 0,
+                    mass: 85 * this.massMult, area: 0.6, cd: 0.8,
+                    path: [], launchSpeed: 0, impactSpeed: 0, flightTime: 0, maxDist: 0, apex: 0, startX: 0, airborne: false
+                });
+            }
+            else if (this.type === 'pillow') {
+                this.entities.push({ 
+                    id: 'A', x: -2, y: 1.2, vx: 0, vy: playState ? 2.5 * this.effort : 0,
+                    mass: 65 * this.massMult, area: 0.4, cd: 1.0, path: [], airborne: playState, swinging: 0, knocked: false
+                });
+                this.entities.push({ 
+                    id: 'B', x: 2, y: 1.0, vx: 0, vy: playState ? 2.0 * this.effort : 0,
+                    mass: 65 * this.massMult, area: 0.4, cd: 1.0,
+                    path: [], launchSpeed: 0, impactSpeed: 0, flightTime: 0, maxDist: 0, apex: 0, startX: 2, airborne: playState, knocked: false
+                });
+                this.targetEntity = 1; 
+            }
+
+            this.updateReadouts();
+        }
+
+        triggerStrike() {
+            if (this.type !== 'pillow' || !this.playing) return;
+            let A = this.entities[0];
+            let B = this.entities[1];
+            
+            A.swinging = 0.3; 
+            
+            if (Math.abs(A.x - B.x) < 5) {
+                let hitPower = 18 * this.effort;
+                
+                // Transfer momentum - slightly upward to initiate airborne state for metric tracking
+                B.vx += hitPower / B.mass;
+                B.vy += 2 * this.effort; 
+                A.vx -= (hitPower * 0.2) / A.mass; // Recoil
+                
+                B.knocked = true; // Prevents them from deliberately jumping anymore
+                B.airborne = true;
+                B.launchSpeed = Math.sqrt(B.vx*B.vx + B.vy*B.vy);
+                B.startX = B.x;
+            }
+        }
+
+        step(dt) {
+            if (!this.active || !this.playing) return;
+            this.time += dt;
+            let allStopped = true;
+
+            this.entities.forEach((ent) => {
+                if (ent.path.length === 0 || this.time % 0.05 < dt) {
+                    ent.path.push({x: ent.x, y: ent.y});
+                }
+                
+                if (ent.swinging > 0) ent.swinging -= dt;
+
+                // Bike Approach Logic
+                if (this.type === 'bike' && ent.id === 'biker') {
+                    if (ent.x < -3) { 
+                        ent.vx += (5 * this.effort) * dt; 
+                        ent.y = 0;
+                        allStopped = false;
+                    } else if (ent.x >= -3 && ent.x < 0) { 
+                        ent.y = ((ent.x + 3) / 3) * 1.2; 
+                        let speed = Math.sqrt(ent.vx*ent.vx + ent.vy*ent.vy);
+                        if(speed === 0) speed = ent.vx;
+                        let angle = Math.atan2(1.2, 3);
+                        ent.vx = speed * Math.cos(angle);
+                        ent.vy = speed * Math.sin(angle);
+                        allStopped = false;
+                    } else if (ent.x >= 0 && !ent.airborne && ent.vx > 0) { 
+                        ent.airborne = true;
+                        ent.launchSpeed = Math.sqrt(ent.vx*ent.vx + ent.vy*ent.vy);
+                        ent.startX = 0;
+                    }
+                }
+
+                // Drag and Gravity
+                if (ent.airborne || this.type === 'pillow') {
+                    const v = Math.sqrt(ent.vx*ent.vx + ent.vy*ent.vy);
+                    const Fd = 0.5 * this.rho * v * v * ent.cd * ent.area;
+                    const ax = (v === 0 ? 0 : -Fd * (ent.vx / v)) / ent.mass;
+                    const ay = -this.g + ((v === 0 ? 0 : -Fd * (ent.vy / v)) / ent.mass);
+
+                    ent.vx += ax * dt;
+                    ent.vy += ay * dt;
+                }
+
+                ent.x += ent.vx * dt;
+                ent.y += ent.vy * dt;
+
+                // Collisions
+                if (this.type === 'pillow') {
+                    const bedHeight = 1.0;
+                    const onBed = ent.x >= -4 && ent.x <= 4;
+                    
+                    if (onBed && ent.y < bedHeight) {
+                        let displacement = bedHeight - ent.y;
+                        
+                        // Normal force acting upwards equals the spring force
+                        let springAccel = (this.springK * displacement) / ent.mass;
+                        ent.vy += springAccel * dt;
+                        
+                        ent.vy *= 0.98; // Vertical damping (mattress foam absorption)
+                        
+                        // LIMITING FRICTION: F_f = mu * F_N
+                        let normalAccel = springAccel; // Normal force converted to acceleration
+                        let frictionDecel = this.mu * normalAccel; 
+                        
+                        if (Math.abs(ent.vx) > 0) {
+                            let sign = ent.vx > 0 ? 1 : -1;
+                            let dv = frictionDecel * dt;
+                            
+                            // If deceleration exceeds current velocity, come to a dead stop
+                            if (Math.abs(ent.vx) <= dv) {
+                                ent.vx = 0;
+                            } else {
+                                ent.vx -= sign * dv;
+                            }
+                        }
+                        
+                        // Maintain playful jumping ONLY if they haven't been knocked off balance
+                        if (!ent.knocked && ent.vy > 0 && Math.abs(ent.vx) < 1.0 && ent.y > bedHeight - 0.2) {
+                            ent.vy += 8 * this.effort * dt;
+                        }
+                    } else if (!onBed && ent.y <= 0) {
+                        // Fell off bed onto floor
+                        if (ent.airborne && ent.id === 'B') {
+                            ent.impactSpeed = Math.sqrt(ent.vx*ent.vx + ent.vy*ent.vy);
+                            ent.airborne = false;
+                        }
+                        ent.y = 0;
+                        ent.vy = -ent.vy * this.cor;
+                        
+                        // Floor limiting friction
+                        let floorDecel = 0.8 * this.g;
+                        if (Math.abs(ent.vx) > 0) {
+                            let sign = ent.vx > 0 ? 1 : -1;
+                            let dv = floorDecel * dt;
+                            if (Math.abs(ent.vx) <= dv) ent.vx = 0;
+                            else ent.vx -= sign * dv;
+                        }
+                        
+                        if (Math.abs(ent.vy) < 0.5) ent.vy = 0;
+                    }
+                    if (Math.abs(ent.vy) > 0.1 || Math.abs(ent.vx) > 0.1 || ent.y > 0) allStopped = false;
+
+                } else {
+                    // Standard ground (Jump & Bike)
+                    if (ent.y <= 0 && (ent.vy < 0 || ent.airborne)) {
+                        if (ent.airborne) {
+                            ent.impactSpeed = Math.sqrt(ent.vx*ent.vx + ent.vy*ent.vy);
+                            ent.airborne = false;
+                        }
+                        ent.y = 0;
+                        ent.vy = 0;
+                        
+                        // Floor limiting friction based on G
+                        let floorDecel = 0.8 * this.g;
+                        if (Math.abs(ent.vx) > 0) {
+                            let sign = ent.vx > 0 ? 1 : -1;
+                            let dv = floorDecel * dt;
+                            if (Math.abs(ent.vx) <= dv) ent.vx = 0;
+                            else ent.vx -= sign * dv;
+                        }
+                    }
+                    if (ent.airborne || Math.abs(ent.vx) > 0.1) allStopped = false;
+                }
+
+                // Metrics
+                if (ent.id === this.entities[this.targetEntity].id) {
+                    if (ent.y > ent.apex) ent.apex = ent.y;
+                    if (ent.airborne) ent.flightTime += dt;
+                    if (ent.x > ent.startX && ent.startX !== null) ent.maxDist = ent.x - ent.startX;
+                }
+            });
+
+            if (allStopped) this.active = false;
+            if (this.time % 0.1 < dt) this.updateReadouts();
+        }
+
+        updateReadouts() {
+            const prefix = this.isEarth ? 'e_' : 's_';
+            const target = this.entities[this.targetEntity];
+            if(!target) return;
+            
+            document.getElementById(`${prefix}launch`).innerText = `${target.launchSpeed.toFixed(1)} m/s`;
+            document.getElementById(`${prefix}impact`).innerText = `${target.impactSpeed.toFixed(1)} m/s`;
+            document.getElementById(`${prefix}time`).innerText = `${target.flightTime.toFixed(2)} s`;
+            document.getElementById(`${prefix}dist`).innerText = `${target.maxDist.toFixed(1)} m`;
+            document.getElementById(`${prefix}apex`).innerText = `${target.apex.toFixed(1)} m`;
+        }
+
+        draw() {
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            const ppm = BASE_PPM * this.zoom;
+            
+            let camX = 0;
+            if (this.type === 'bike') camX = -5;
+            
+            const screenX = (mX) => (this.canvas.width / 2) + ((mX - camX) * ppm);
+            const screenY = (mY) => GROUND_Y - (mY * ppm);
+
+            this.ctx.fillStyle = '#1a1a2e';
+            this.ctx.fillRect(0, GROUND_Y, this.canvas.width, this.canvas.height - GROUND_Y);
+
+            if (this.type === 'jump') {
+                this.ctx.strokeStyle = '#2a3a5e';
+                this.ctx.lineWidth = 4;
+                this.ctx.strokeRect(screenX(-2), screenY(2.5), 1.2 * ppm, 1.5 * ppm);
+                this.ctx.strokeRect(screenX(1), screenY(2.2), 1.0 * ppm, 1.0 * ppm);
+            }
+
+            this.ctx.strokeStyle = '#fff';
+            this.ctx.lineWidth = 2;
+            
+            if (this.type === 'bike') {
+                this.ctx.beginPath();
+                this.ctx.moveTo(screenX(-20), screenY(0));
+                this.ctx.lineTo(screenX(-3), screenY(0));
+                this.ctx.lineTo(screenX(0), screenY(1.2)); 
+                this.ctx.lineTo(screenX(0), screenY(0));
+                this.ctx.lineTo(screenX(100), screenY(0));
+                this.ctx.stroke();
+            } else if (this.type === 'pillow') {
+                this.ctx.beginPath(); this.ctx.moveTo(screenX(-20), screenY(0)); this.ctx.lineTo(screenX(100), screenY(0)); this.ctx.stroke();
+                this.ctx.fillStyle = '#3a8cd9';
+                this.ctx.fillRect(screenX(-4), screenY(1.0), 8 * ppm, 1.0 * ppm);
+            } else {
+                this.ctx.beginPath(); this.ctx.moveTo(screenX(-20), screenY(0)); this.ctx.lineTo(screenX(100), screenY(0)); this.ctx.stroke();
+            }
+
+            this.entities.forEach(ent => {
+                this.ctx.beginPath();
+                this.ctx.strokeStyle = 'rgba(79, 172, 247, 0.5)';
+                this.ctx.lineWidth = 2;
+                ent.path.forEach((p, i) => {
+                    if (i === 0) this.ctx.moveTo(screenX(p.x), screenY(p.y));
+                    else this.ctx.lineTo(screenX(p.x), screenY(p.y));
+                });
+                this.ctx.stroke();
+
+                let px = screenX(ent.x);
+                let py = screenY(ent.y);
+
+                if (this.type === 'jump') {
+                    let expanded = Math.abs(ent.vy) < 1.5 && ent.y > 0.1;
+                    this.drawStickman(px, py, expanded, false, 1, ppm, 0);
+                } else if (this.type === 'bike') {
+                    this.drawBike(px, py, ppm);
+                } else if (this.type === 'pillow') {
+                    let isAttacker = ent.id === 'A';
+                    this.drawStickman(px, py, false, true, isAttacker ? 1 : -1, ppm, ent.swinging);
+                }
+            });
+        }
+
+        drawStickman(x, y, expanded, hasPillow, facing, ppm, swingTimer) {
+            const c = this.ctx;
+            let scale = ppm / 25; 
+            c.strokeStyle = '#fff'; c.lineWidth = 2 * scale;
+            c.beginPath();
+            c.arc(x, y - 35*scale, 6*scale, 0, Math.PI * 2); 
+            c.moveTo(x, y - 29*scale); c.lineTo(x, y - 15*scale); 
+            
+            if (expanded) {
+                c.moveTo(x, y - 15*scale); c.lineTo(x - 12*scale, y); 
+                c.moveTo(x, y - 15*scale); c.lineTo(x + 12*scale, y); 
+                c.moveTo(x, y - 25*scale); c.lineTo(x - 15*scale, y - 35*scale); 
+                c.moveTo(x, y - 25*scale); c.lineTo(x + 15*scale, y - 35*scale); 
+            } else {
+                c.moveTo(x, y - 15*scale); c.lineTo(x - 5*scale, y); 
+                c.moveTo(x, y - 15*scale); c.lineTo(x + 5*scale, y); 
+                
+                if (hasPillow) {
+                    let armTargetX = x + (15*facing*scale);
+                    let armTargetY = y - 20*scale;
+                    
+                    if (swingTimer > 0) { 
+                        armTargetX = x + (25*facing*scale);
+                        armTargetY = y - 10*scale;
+                    }
+                    
+                    c.moveTo(x, y - 25*scale); c.lineTo(armTargetX, armTargetY); 
+                    c.fillStyle = '#fff';
+                    c.fillRect(armTargetX - 5*scale, armTargetY - 5*scale, 14*scale, 10*scale); 
+                } else {
+                    c.moveTo(x, y - 25*scale); c.lineTo(x - 8*scale, y - 15*scale); 
+                    c.moveTo(x, y - 25*scale); c.lineTo(x + 8*scale, y - 15*scale); 
+                }
+            }
+            c.stroke();
+        }
+
+        drawBike(x, y, ppm) {
+            const c = this.ctx;
+            let s = ppm / 25;
+            c.strokeStyle = '#e94560'; c.lineWidth = 2 * s;
+            c.beginPath(); c.arc(x - 12*s, y - 8*s, 8*s, 0, Math.PI * 2); c.stroke();
+            c.beginPath(); c.arc(x + 12*s, y - 8*s, 8*s, 0, Math.PI * 2); c.stroke();
+            c.beginPath();
+            c.moveTo(x - 12*s, y - 8*s); c.lineTo(x, y - 8*s); c.lineTo(x + 6*s, y - 20*s); 
+            c.lineTo(x - 6*s, y - 20*s); c.lineTo(x - 12*s, y - 8*s); 
+            c.moveTo(x - 6*s, y - 20*s); c.lineTo(x - 6*s, y - 35*s); 
+            c.arc(x - 6*s, y - 40*s, 5*s, 0, Math.PI * 2); 
+            c.stroke();
+        }
+    }
+
+    const earthSim = new Simulation('earthCanvas', true);
+    const spaceSim = new Simulation('spaceCanvas', false);
+
+    function checkUI() {
+        const type = document.getElementById('activityType').value;
+        document.getElementById('hitBtn').style.display = type === 'pillow' ? 'block' : 'none';
+    }
+
+    function updateVisualsOnly() {
+        checkUI();
+        earthSim.resetSim(false);
+        spaceSim.resetSim(false);
+        earthSim.draw();
+        spaceSim.draw();
+    }
+
+    const inputs = ['activityType', 'effort', 'zoom', 'gravity', 'density', 'massMult', 'spring', 'mu'];
+    inputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', (e) => {
+                const valSpan = document.getElementById(id + 'Val');
+                if (valSpan) {
+                    if (['effort', 'zoom', 'massMult'].includes(id)) valSpan.textContent = parseFloat(e.target.value).toFixed(1) + 'x';
+                    else valSpan.textContent = e.target.value;
+                }
+                if(['activityType', 'effort', 'zoom'].includes(id)) updateVisualsOnly();
+                else spaceSim.syncState(); 
+            });
+        }
+    });
+
+    document.getElementById('playBtn').addEventListener('click', () => {
+        earthSim.resetSim(true);
+        spaceSim.resetSim(true);
+    });
+
+    document.getElementById('hitBtn').addEventListener('click', () => {
+        earthSim.triggerStrike();
+        spaceSim.triggerStrike();
+    });
+
+    updateVisualsOnly(); 
+
+    let lastTime = performance.now();
+    function loop(time) {
+        let dt = (time - lastTime) / 1000;
+        if (dt > 0.05) dt = 0.05; 
+        lastTime = time;
+
+        const steps = 10; 
+        const subDt = dt / steps;
+        for (let i = 0; i < steps; i++) {
+            earthSim.step(subDt);
+            spaceSim.step(subDt);
+        }
+
+        if (earthSim.playing || spaceSim.playing || earthSim.zoom !== spaceSim.zoom) {
+            earthSim.draw();
+            spaceSim.draw();
+        }
+
+        requestAnimationFrame(loop);
+    }
+
+    requestAnimationFrame(loop);
+
+</script>
+</body>
+</html>

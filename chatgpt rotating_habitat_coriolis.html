@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Rotating Habitat Coriolis Explorer</title>
+  <style>
+    :root{
+      --bg:#0b0e14;
+      --panel:#111827;
+      --panel2:#0f172a;
+      --text:#e5e7eb;
+      --muted:#aab2c2;
+      --line:#223049;
+      --accent:#93c5fd;
+      --good:#a7f3d0;
+      --warn:#fde68a;
+      --bad:#fca5a5;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:linear-gradient(180deg, #070a10 0%, #0b0e14 100%);
+      color:var(--text);
+      font-family:var(--sans);
+    }
+    header{
+      padding:20px 18px 10px;
+      border-bottom:1px solid var(--line);
+    }
+    header h1{
+      margin:0 0 6px 0;
+      font-size:20px;
+      font-weight:650;
+      letter-spacing:0.2px;
+    }
+    header p{
+      margin:0;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.35;
+      max-width:90ch;
+    }
+
+    .wrap{
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap:14px;
+      padding:14px;
+      align-items:start;
+    }
+    @media (max-width: 980px){
+      .wrap{grid-template-columns:1fr}
+    }
+
+    .card{
+      background:linear-gradient(180deg, var(--panel) 0%, var(--panel2) 100%);
+      border:1px solid var(--line);
+      border-radius:14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      overflow:hidden;
+    }
+    .card .hd{
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .card .hd h2{
+      margin:0;
+      font-size:14px;
+      font-weight:650;
+      letter-spacing:0.2px;
+    }
+    .card .bd{
+      padding:12px 14px 14px;
+    }
+
+    .row{display:grid; grid-template-columns: 1fr 120px; gap:10px; align-items:center; margin:10px 0}
+    .row label{font-size:13px; color:var(--muted)}
+    .row input[type="number"]{
+      width:100%;
+      padding:8px 10px;
+      border-radius:10px;
+      border:1px solid var(--line);
+      background:#0a1020;
+      color:var(--text);
+      font-family:var(--mono);
+      font-size:13px;
+      outline:none;
+    }
+    input[type="range"]{width:100%}
+    .sub{
+      margin-top:6px;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.35;
+    }
+    .grid2{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+    }
+    .pillbar{
+      display:flex; flex-wrap:wrap; gap:8px;
+      margin-top:10px;
+    }
+    .pill{
+      border:1px solid var(--line);
+      background:#0a1020;
+      color:var(--text);
+      padding:7px 9px;
+      border-radius:999px;
+      font-size:12px;
+      cursor:pointer;
+      user-select:none;
+    }
+    .pill[aria-pressed="true"]{
+      border-color:rgba(147,197,253,0.7);
+      box-shadow:0 0 0 2px rgba(147,197,253,0.18);
+      color:#dbeafe;
+    }
+
+    .kpi{
+      display:grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap:10px;
+    }
+    @media (max-width: 980px){
+      .kpi{grid-template-columns:1fr}
+    }
+    .kpi .box{
+      padding:12px 14px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:rgba(10,16,32,0.55);
+    }
+    .kpi .box h3{
+      margin:0 0 6px 0;
+      color:var(--muted);
+      font-size:12px;
+      font-weight:600;
+      letter-spacing:0.2px;
+    }
+    .kpi .box .val{
+      font-family:var(--mono);
+      font-size:18px;
+      font-weight:700;
+      letter-spacing:0.2px;
+    }
+    .kpi .box .note{
+      margin-top:6px;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.35;
+    }
+
+    .big{
+      display:grid;
+      grid-template-columns: 1fr 360px;
+      gap:14px;
+    }
+    @media (max-width: 980px){
+      .big{grid-template-columns:1fr}
+    }
+
+    .mono{font-family:var(--mono)}
+    .muted{color:var(--muted)}
+    .good{color:var(--good)}
+    .warn{color:var(--warn)}
+    .bad{color:var(--bad)}
+
+    .svgwrap{
+      padding:10px;
+      border:1px dashed rgba(147,197,253,0.35);
+      border-radius:14px;
+      background:rgba(10,16,32,0.35);
+    }
+    .legend{
+      margin-top:10px;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.35;
+    }
+    .tips ul{
+      margin:8px 0 0 18px;
+      padding:0;
+    }
+    .tips li{
+      margin:6px 0;
+      color:var(--text);
+      font-size:13px;
+      line-height:1.4;
+    }
+    .smallprint{
+      margin-top:12px;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.45;
+    }
+    .footer{
+      padding:10px 14px 16px;
+      border-top:1px solid var(--line);
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.45;
+    }
+    a{color:var(--accent)}
+  </style>
+</head>
+<body>
+<header>
+  <h1>Rotating Habitat Coriolis Explorer</h1>
+  <p>
+    Local model with the relations you quoted: <span class="mono">a<sub>C</sub> = 2 ω × v</span> and <span class="mono">g<sub>eff</sub> = ω² r</span>.
+    Tweak rotation, radius, speed, and motion direction to see the “shove” direction and size. No external libraries; works offline.
+  </p>
+</header>
+
+<div class="wrap">
+  <!-- Controls -->
+  <section class="card">
+    <div class="hd"><h2>Rotation & radius</h2></div>
+    <div class="bd">
+
+      <div class="row">
+        <label for="rpm">Rotation rate (rpm)</label>
+        <input id="rpmN" type="number" min="0" max="10" step="0.01" value="2.00" />
+      </div>
+      <input id="rpm" type="range" min="0" max="8" step="0.01" value="2.00" />
+      <div class="sub">Linked: ω (rad/s) and period T (s). Edit any field; the others update.</div>
+
+      <div class="grid2" style="margin-top:10px;">
+        <div>
+          <div class="row" style="grid-template-columns: 1fr 120px;">
+            <label for="omegaN">ω (rad/s)</label>
+            <input id="omegaN" type="number" min="0" step="0.0001" value="0.2094" />
+          </div>
+        </div>
+        <div>
+          <div class="row" style="grid-template-columns: 1fr 120px;">
+            <label for="periodN">T (s)</label>
+            <input id="periodN" type="number" min="0" step="0.1" value="30.0" />
+          </div>
+        </div>
+      </div>
+
+      <hr style="border:0;border-top:1px solid var(--line); margin:12px 0;">
+
+      <div class="row">
+        <label for="radius">Radius r (m)</label>
+        <input id="radiusN" type="number" min="5" max="5000" step="1" value="224" />
+      </div>
+      <input id="radius" type="range" min="10" max="2000" step="1" value="224" />
+      <div class="sub">
+        This is the radius of the activity area (rim radius if you’re living on the inside surface).
+      </div>
+
+      <hr style="border:0;border-top:1px solid var(--line); margin:12px 0;">
+
+      <div class="row">
+        <label for="height">Height step Δr (m)</label>
+        <input id="heightN" type="number" min="0" max="10" step="0.1" value="1.0" />
+      </div>
+      <div class="sub">Used for the fractional g-gradient estimate: Δg/g ≈ Δr/r.</div>
+
+    </div>
+
+    <div class="hd"><h2>Activity</h2></div>
+    <div class="bd">
+      <div class="row">
+        <label for="speed">Speed |v| (m/s)</label>
+        <input id="speedN" type="number" min="0" max="30" step="0.1" value="1.5" />
+      </div>
+      <input id="speed" type="range" min="0" max="15" step="0.1" value="1.5" />
+      <div class="sub">Rule-of-thumb walking is about 1.5 m/s; bikes/carts can be much higher.</div>
+
+      <div style="margin-top:12px;">
+        <div class="muted" style="font-size:13px; margin-bottom:6px;">Orientation (pick a common case)</div>
+        <div class="pillbar" role="group" aria-label="orientation presets">
+          <button class="pill" id="p_pro" aria-pressed="true">Tangential (with spin)</button>
+          <button class="pill" id="p_retro" aria-pressed="false">Tangential (against spin)</button>
+          <button class="pill" id="p_out" aria-pressed="false">Radial out (toward rim “down”)</button>
+          <button class="pill" id="p_in" aria-pressed="false">Radial in (toward axis “up”)</button>
+          <button class="pill" id="p_ax" aria-pressed="false">Axial (along habitat axis)</button>
+          <button class="pill" id="p_custom" aria-pressed="false">Custom</button>
+        </div>
+      </div>
+
+      <div id="customPanel" style="display:none; margin-top:12px;">
+        <div class="grid2">
+          <div>
+            <div class="row" style="grid-template-columns: 1fr 120px;">
+              <label for="headingN">Heading φ (deg)</label>
+              <input id="headingN" type="number" min="-180" max="180" step="1" value="0" />
+            </div>
+            <input id="heading" type="range" min="-180" max="180" step="1" value="0" />
+            <div class="sub">0 = with spin; 180 = against; +90 = radial out; −90 = radial in.</div>
+          </div>
+          <div>
+            <div class="row" style="grid-template-columns: 1fr 120px;">
+              <label for="elevN">Elevation θ (deg)</label>
+              <input id="elevN" type="number" min="-90" max="90" step="1" value="0" />
+            </div>
+            <input id="elev" type="range" min="-90" max="90" step="1" value="0" />
+            <div class="sub">0 = in the floor plane; ±90 = purely axial (no Coriolis).</div>
+          </div>
+        </div>
+      </div>
+
+      <hr style="border:0;border-top:1px solid var(--line); margin:12px 0;">
+
+      <div class="muted" style="font-size:13px; margin-bottom:6px;">Free-jet drift (rough)</div>
+      <div class="grid2">
+        <div>
+          <div class="row" style="grid-template-columns: 1fr 120px;">
+            <label for="jetV">Jet speed (m/s)</label>
+            <input id="jetVN" type="number" min="0" max="20" step="0.1" value="3.0" />
+          </div>
+        </div>
+        <div>
+          <div class="row" style="grid-template-columns: 1fr 120px;">
+            <label for="fallH">Fall distance (m)</label>
+            <input id="fallHN" type="number" min="0" max="5" step="0.05" value="1.0" />
+          </div>
+        </div>
+      </div>
+      <div class="sub">
+        Uses <span class="mono">t ≈ √(2h/g<sub>eff</sub>)</span> and assumes the jet’s speed stays roughly <span class="mono">v</span> for the Coriolis estimate:
+        drift ≈ <span class="mono">ω v t²</span>.
+      </div>
+    </div>
+  </section>
+
+  <!-- Outputs -->
+  <section class="big">
+    <div class="card">
+      <div class="hd"><h2>Computed results</h2></div>
+      <div class="bd">
+        <div class="kpi">
+          <div class="box">
+            <h3>Effective gravity</h3>
+            <div class="val" id="gEffVal">—</div>
+            <div class="note" id="gEffNote">—</div>
+          </div>
+          <div class="box">
+            <h3>Coriolis acceleration</h3>
+            <div class="val" id="aCVal">—</div>
+            <div class="note" id="aCNote">—</div>
+          </div>
+          <div class="box">
+            <h3>1 g sizing</h3>
+            <div class="val" id="r1gVal">—</div>
+            <div class="note" id="rpm1gNote">—</div>
+          </div>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="grid2">
+          <div class="box" style="padding:12px 14px; border:1px solid var(--line); border-radius:14px; background:rgba(10,16,32,0.55);">
+            <h3 style="margin:0 0 8px 0; color:var(--muted); font-size:12px; font-weight:600;">Vector directions (local axes)</h3>
+            <div class="svgwrap">
+              <svg id="vecSvg" viewBox="-120 -120 240 240" width="100%" height="280" role="img" aria-label="Vector diagram">
+                <!-- axes -->
+                <defs>
+                  <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+                  </marker>
+                </defs>
+
+                <circle cx="0" cy="0" r="110" fill="none" stroke="rgba(147,197,253,0.15)" stroke-width="2"></circle>
+
+                <!-- axis lines -->
+                <line x1="0" y1="0" x2="0" y2="-100" stroke="rgba(229,231,235,0.45)" stroke-width="2" marker-end="url(#arrow)"></line>
+                <line x1="0" y1="0" x2="100" y2="0" stroke="rgba(229,231,235,0.45)" stroke-width="2" marker-end="url(#arrow)"></line>
+
+                <text x="0" y="-108" fill="rgba(229,231,235,0.75)" font-size="11" text-anchor="middle">+y prograde</text>
+                <text x="108" y="4" fill="rgba(229,231,235,0.75)" font-size="11">+x radial out</text>
+                <text x="-108" y="4" fill="rgba(229,231,235,0.45)" font-size="10">−x in</text>
+                <text x="0" y="118" fill="rgba(229,231,235,0.45)" font-size="10" text-anchor="middle">−y retrograde</text>
+
+                <!-- velocity vector -->
+                <line id="vLine" x1="0" y1="0" x2="0" y2="-70" stroke="rgba(167,243,208,0.95)" stroke-width="4" marker-end="url(#arrow)"></line>
+                <text id="vLabel" x="0" y="-78" fill="rgba(167,243,208,0.95)" font-size="11" text-anchor="middle">v</text>
+
+                <!-- coriolis vector -->
+                <line id="aLine" x1="0" y1="0" x2="70" y2="0" stroke="rgba(252,165,165,0.95)" stroke-width="4" marker-end="url(#arrow)"></line>
+                <text id="aLabel" x="78" y="4" fill="rgba(252,165,165,0.95)" font-size="11">aC</text>
+
+                <!-- omega (out of page) -->
+                <circle cx="-88" cy="-88" r="16" fill="rgba(147,197,253,0.15)" stroke="rgba(147,197,253,0.5)" stroke-width="2"></circle>
+                <circle cx="-88" cy="-88" r="3" fill="rgba(147,197,253,0.9)"></circle>
+                <text x="-88" y="-64" fill="rgba(147,197,253,0.75)" font-size="11" text-anchor="middle">ω out of page</text>
+              </svg>
+            </div>
+            <div class="legend">
+              Green = your motion <span class="mono">v</span> in the floor plane; red = Coriolis shove <span class="mono">a<sub>C</sub></span> (for ω pointing “out of page”).<br>
+              If you set elevation away from 0°, only the horizontal component contributes.
+            </div>
+          </div>
+
+          <div class="box tips" style="padding:12px 14px; border:1px solid var(--line); border-radius:14px; background:rgba(10,16,32,0.55);">
+            <h3 style="margin:0 0 8px 0; color:var(--muted); font-size:12px; font-weight:600;">What this means in practice</h3>
+            <div id="ruleOut" class="mono" style="font-size:13px; line-height:1.45;"></div>
+            <div style="height:10px"></div>
+            <div id="tipsOut"></div>
+            <div class="smallprint">
+              This is a local, “small patch of the rim” model. Real layouts add geometry (curved corridors), Euler force during spin changes, air flow, and human vestibular limits.
+            </div>
+          </div>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="kpi">
+          <div class="box">
+            <h3>g-gradient (Δg/g)</h3>
+            <div class="val" id="gradVal">—</div>
+            <div class="note">Approximation: Δg/g ≈ Δr/r.</div>
+          </div>
+          <div class="box">
+            <h3>Side-slope equivalence</h3>
+            <div class="val" id="tiltVal">—</div>
+            <div class="note">Tilt angle ≈ arctan(aC / g_eff).</div>
+          </div>
+          <div class="box">
+            <h3>Jet drift estimate</h3>
+            <div class="val" id="jetVal">—</div>
+            <div class="note">Tangential drift over fall distance h.</div>
+          </div>
+        </div>
+
+      </div>
+      <div class="footer">
+        Tip: if you want a quick “comfort check”, set <span class="mono">v = 1.5 m/s</span> and look at <span class="mono">aC</span> in g’s.
+        Long-term habitats often aim for ≤2 rpm to keep vestibular/Coriolis effects manageable.
+      </div>
+    </div>
+
+    <aside class="card">
+      <div class="hd"><h2>Design rules cheat-sheet</h2></div>
+      <div class="bd">
+        <div class="muted" style="font-size:13px; line-height:1.45;">
+          These are the qualitative “ops card” points, restated:
+        </div>
+        <div class="tips">
+          <ul>
+            <li><span class="mono">aC ∝ ω v</span>: speed limits matter (carts, bikes, drones).</li>
+            <li>Prefer tangential corridors; radial travel needs rails and gentle lift/stair profiles.</li>
+            <li>Put high-speed activity near the rim; minimise routine radial commuting.</li>
+            <li>Where free jets exist (showers, hoses), keep fall distances short; use enclosures, sprays, angled drains.</li>
+            <li>Precision work and VR/medical tasks: keep ω low; “eyes first, slow head” helps.</li>
+            <li>Avoid routine spin-rate changes (Euler forces) during normal operations.</li>
+          </ul>
+        </div>
+        <div class="smallprint">
+          If you’d like this turned into clean, printable A4 handouts, say so and I’ll lay them out.
+        </div>
+      </div>
+    </aside>
+  </section>
+</div>
+
+<script>
+(function(){
+  // Constants
+  const g0 = 9.80665;
+  const TWO_PI = Math.PI * 2;
+
+  // Elements
+  const el = (id)=>document.getElementById(id);
+
+  const rpm = el('rpm');
+  const rpmN = el('rpmN');
+  const omegaN = el('omegaN');
+  const periodN = el('periodN');
+
+  const radius = el('radius');
+  const radiusN = el('radiusN');
+
+  const heightN = el('heightN');
+
+  const speed = el('speed');
+  const speedN = el('speedN');
+
+  const jetVN = el('jetVN');
+  const fallHN = el('fallHN');
+
+  const customPanel = el('customPanel');
+  const heading = el('heading');
+  const headingN = el('headingN');
+  const elev = el('elev');
+  const elevN = el('elevN');
+
+  const gEffVal = el('gEffVal');
+  const gEffNote = el('gEffNote');
+  const aCVal = el('aCVal');
+  const aCNote = el('aCNote');
+  const r1gVal = el('r1gVal');
+  const rpm1gNote = el('rpm1gNote');
+
+  const gradVal = el('gradVal');
+  const tiltVal = el('tiltVal');
+  const jetVal = el('jetVal');
+
+  const ruleOut = el('ruleOut');
+  const tipsOut = el('tipsOut');
+
+  const vLine = el('vLine');
+  const aLine = el('aLine');
+  const vLabel = el('vLabel');
+  const aLabel = el('aLabel');
+
+  const pills = {
+    pro: el('p_pro'),
+    retro: el('p_retro'),
+    out: el('p_out'),
+    inn: el('p_in'),
+    ax: el('p_ax'),
+    custom: el('p_custom'),
+  };
+
+  let preset = 'pro'; // pro, retro, out, inn, ax, custom
+
+  function clamp(x, lo, hi){ return Math.max(lo, Math.min(hi, x)); }
+  function fmt(x, d=3){ return Number.isFinite(x) ? x.toFixed(d) : '—'; }
+  function fmt2(x){ return Number.isFinite(x) ? x.toFixed(2) : '—'; }
+  function fmt1(x){ return Number.isFinite(x) ? x.toFixed(1) : '—'; }
+  function fmt3(x){ return Number.isFinite(x) ? x.toFixed(3) : '—'; }
+
+  function rpmToOmega(r){ return TWO_PI * r / 60; }
+  function omegaToRpm(w){ return w * 60 / TWO_PI; }
+  function rpmToPeriod(r){ return (r>0) ? 60 / r : Infinity; }
+  function omegaToPeriod(w){ return (w>0) ? TWO_PI / w : Infinity; }
+  function periodToRpm(T){ return (T>0 && Number.isFinite(T)) ? 60 / T : 0; }
+
+  function setPreset(name){
+    preset = name;
+    for(const [k,b] of Object.entries(pills)){
+      b.setAttribute('aria-pressed', (k===name) ? 'true' : 'false');
+    }
+    if(name==='custom'){
+      customPanel.style.display = 'block';
+    } else {
+      customPanel.style.display = 'none';
+    }
+    // Apply angles for non-custom to keep diagram consistent
+    if(name==='pro'){ heading.value = headingN.value = 0; elev.value = elevN.value = 0; }
+    if(name==='retro'){ heading.value = headingN.value = 180; elev.value = elevN.value = 0; }
+    if(name==='out'){ heading.value = headingN.value = 90; elev.value = elevN.value = 0; }
+    if(name==='inn'){ heading.value = headingN.value = -90; elev.value = elevN.value = 0; }
+    if(name==='ax'){ heading.value = headingN.value = 0; elev.value = elevN.value = 90; }
+    recalc();
+  }
+
+  pills.pro.addEventListener('click', ()=>setPreset('pro'));
+  pills.retro.addEventListener('click', ()=>setPreset('retro'));
+  pills.out.addEventListener('click', ()=>setPreset('out'));
+  pills.inn.addEventListener('click', ()=>setPreset('inn'));
+  pills.ax.addEventListener('click', ()=>setPreset('ax'));
+  pills.custom.addEventListener('click', ()=>setPreset('custom'));
+
+  function syncRotationFromRPM(){
+    const r = parseFloat(rpm.value);
+    const w = rpmToOmega(r);
+    const T = rpmToPeriod(r);
+    rpmN.value = fmt2(r);
+    omegaN.value = fmt(w, 4);
+    periodN.value = Number.isFinite(T) ? fmt1(T) : '';
+  }
+  function syncRotationFromOmega(){
+    const w = Math.max(0, parseFloat(omegaN.value));
+    const r = omegaToRpm(w);
+    const T = omegaToPeriod(w);
+    rpm.value = clamp(r, parseFloat(rpm.min), parseFloat(rpm.max));
+    rpmN.value = fmt2(r);
+    periodN.value = Number.isFinite(T) ? fmt1(T) : '';
+  }
+  function syncRotationFromPeriod(){
+    const T = Math.max(0, parseFloat(periodN.value));
+    const r = periodToRpm(T);
+    const w = rpmToOmega(r);
+    rpm.value = clamp(r, parseFloat(rpm.min), parseFloat(rpm.max));
+    rpmN.value = fmt2(r);
+    omegaN.value = fmt(w, 4);
+  }
+
+  // Rotation input wiring
+  rpm.addEventListener('input', ()=>{ rpmN.value = fmt2(parseFloat(rpm.value)); syncRotationFromRPM(); recalc(); });
+  rpmN.addEventListener('input', ()=>{ rpm.value = clamp(parseFloat(rpmN.value), parseFloat(rpm.min), parseFloat(rpm.max)); syncRotationFromRPM(); recalc(); });
+  omegaN.addEventListener('input', ()=>{ syncRotationFromOmega(); recalc(); });
+  periodN.addEventListener('input', ()=>{ syncRotationFromPeriod(); recalc(); });
+
+  // Radius
+  radius.addEventListener('input', ()=>{ radiusN.value = Math.round(parseFloat(radius.value)); recalc(); });
+  radiusN.addEventListener('input', ()=>{ radius.value = clamp(parseFloat(radiusN.value), parseFloat(radius.min), parseFloat(radius.max)); recalc(); });
+
+  // Height step
+  heightN.addEventListener('input', recalc);
+
+  // Speed
+  speed.addEventListener('input', ()=>{ speedN.value = fmt1(parseFloat(speed.value)); recalc(); });
+  speedN.addEventListener('input', ()=>{ speed.value = clamp(parseFloat(speedN.value), parseFloat(speed.min), parseFloat(speed.max)); recalc(); });
+
+  // Custom angles
+  heading.addEventListener('input', ()=>{ headingN.value = heading.value; recalc(); });
+  headingN.addEventListener('input', ()=>{ heading.value = clamp(parseFloat(headingN.value), -180, 180); recalc(); });
+
+  elev.addEventListener('input', ()=>{ elevN.value = elev.value; recalc(); });
+  elevN.addEventListener('input', ()=>{ elev.value = clamp(parseFloat(elevN.value), -90, 90); recalc(); });
+
+  // Jet
+  jetVN.addEventListener('input', recalc);
+  fallHN.addEventListener('input', recalc);
+
+  function unitLabelFromMagnitude(aG){
+    if(!Number.isFinite(aG)) return {cls:'muted', txt:'—'};
+    if(aG < 0.05) return {cls:'good', txt:'mild'};
+    if(aG < 0.10) return {cls:'warn', txt:'noticeable'};
+    return {cls:'bad', txt:'strong'};
+  }
+
+  function directionWords(ax, ay){
+    // ax: radial (+ out), ay: tangential (+ prograde)
+    const eps = 1e-12;
+    let parts = [];
+    if(Math.abs(ax) > eps) parts.push(ax>0 ? 'outward' : 'inward');
+    if(Math.abs(ay) > eps) parts.push(ay>0 ? 'with spin' : 'against spin');
+    if(parts.length===0) return 'no sideways shove';
+    if(parts.length===1) return parts[0];
+    return parts[0] + ' and ' + parts[1];
+  }
+
+  function recalc(){
+    // Read current state
+    const rpmVal = Math.max(0, parseFloat(rpm.value));
+    const w = rpmToOmega(rpmVal);
+    const r = Math.max(0, parseFloat(radius.value));
+    const dr = Math.max(0, parseFloat(heightN.value));
+    const v = Math.max(0, parseFloat(speed.value));
+
+    const phi = (parseFloat(heading.value) || 0) * Math.PI/180; // heading
+    const th  = (parseFloat(elev.value) || 0) * Math.PI/180; // elevation
+
+    // Effective gravity
+    const gEff = w*w*r;
+    const gRatio = (gEff/g0);
+
+    // Gradient
+    const gradFrac = (r>0) ? (dr/r) : Infinity; // Δg/g ≈ Δr/r
+    const gradPct = gradFrac*100;
+
+    // Velocity components in local axes:
+    // +x radial out, +y prograde tangential, +z along axis
+    const vx = v * Math.cos(th) * Math.sin(phi);
+    const vy = v * Math.cos(th) * Math.cos(phi);
+    const vz = v * Math.sin(th);
+
+    // Coriolis: aC = 2 ω × v , with ω = (0,0,w)
+    // => ω×v = (-w*vy, w*vx, 0)
+    const aCx = -2*w*vy;
+    const aCy =  2*w*vx;
+    const aCmag = Math.hypot(aCx, aCy);
+    const aCg = aCmag / g0;
+
+    // “Feels like” side slope
+    const tilt = (gEff>0) ? Math.atan2(aCmag, gEff) * 180/Math.PI : 0;
+
+    // 1g sizing: radius needed for 1g at this ω, and rpm needed for 1g at this radius
+    const r1g = (w>0) ? (g0/(w*w)) : Infinity;
+    const w1g = (r>0) ? Math.sqrt(g0/r) : Infinity;
+    const rpm1g = (Number.isFinite(w1g)) ? omegaToRpm(w1g) : Infinity;
+
+    // Jet drift (rough)
+    const vJet = Math.max(0, parseFloat(jetVN.value));
+    const h = Math.max(0, parseFloat(fallHN.value));
+    const tFall = (gEff>0) ? Math.sqrt(2*h/gEff) : Infinity;
+    const drift = (Number.isFinite(tFall)) ? (w * vJet * tFall * tFall) : Infinity;
+
+    // Update KPIs
+    gEffVal.textContent = `${fmt2(gEff)} m/s²  (${fmt3(gRatio)} g)`;
+    gEffNote.textContent = `From ω² r. Period T ≈ ${Number.isFinite(rpmToPeriod(rpmVal)) ? fmt1(rpmToPeriod(rpmVal)) : '—'} s.`;
+
+    aCVal.textContent = `${fmt2(aCmag)} m/s²  (${fmt3(aCg)} g)`;
+    const qual = unitLabelFromMagnitude(aCg);
+    aCNote.innerHTML = `Direction: <span class="${qual.cls}">${directionWords(aCx, aCy)}</span> · size ∝ ω v.`;
+
+    r1gVal.textContent = (Number.isFinite(r1g)) ? `${fmt1(r1g)} m` : '—';
+    rpm1gNote.textContent = (Number.isFinite(rpm1g)) ? `At r=${Math.round(r)} m you need ≈ ${fmt2(rpm1g)} rpm for 1 g.` : '—';
+
+    gradVal.textContent = (Number.isFinite(gradPct)) ? `${fmt2(gradPct)}%` : '—';
+    tiltVal.textContent = (gEff>0) ? `${fmt1(tilt)}°` : '—';
+    jetVal.textContent = (Number.isFinite(drift)) ? `${fmt1(drift*100)} cm` : '—';
+
+    // Update vector diagram (project to x-y plane)
+    // Scale: map horizontal velocity to ~70 px.
+    const vH = Math.hypot(vx, vy);
+    const vScale = (vH>0) ? 70 / vH : 0;
+    const ax = vx * vScale;
+    const ay = -vy * vScale; // SVG y down, so invert
+    vLine.setAttribute('x2', ax.toFixed(1));
+    vLine.setAttribute('y2', ay.toFixed(1));
+    vLabel.setAttribute('x', (ax*1.05).toFixed(1));
+    vLabel.setAttribute('y', (ay*1.05).toFixed(1));
+
+    // Coriolis arrow
+    const aH = Math.hypot(aCx, aCy);
+    const aScale = (aH>0) ? 70 / aH : 0;
+    const bx = aCx * aScale;
+    const by = -aCy * aScale;
+    aLine.setAttribute('x2', bx.toFixed(1));
+    aLine.setAttribute('y2', by.toFixed(1));
+    aLabel.setAttribute('x', (bx*1.08).toFixed(1));
+    aLabel.setAttribute('y', (by*1.08).toFixed(1));
+
+    // Text block
+    const headingTxt = (function(){
+      const deg = (parseFloat(heading.value) || 0);
+      const elevDeg = (parseFloat(elev.value) || 0);
+      if(preset==='ax') return 'axial motion (along the habitat axis)';
+      if(preset==='pro') return 'tangential motion with the spin (prograde)';
+      if(preset==='retro') return 'tangential motion against the spin (retrograde)';
+      if(preset==='out') return 'radial motion outward (toward the rim “down”)';
+      if(preset==='inn') return 'radial motion inward (toward the axis “up”)';
+      return `custom: heading φ=${Math.round(deg)}°, elevation θ=${Math.round(elevDeg)}°`;
+    })();
+
+    const dirPhrase = directionWords(aCx, aCy);
+    const tag = unitLabelFromMagnitude(aCg);
+
+    ruleOut.innerHTML =
+      `Mode: ${headingTxt}<br>` +
+      `Shove: <span class="${tag.cls}">${dirPhrase}</span><br>` +
+      `Magnitude: aC = ${fmt2(aCmag)} m/s² (${fmt3(aCg)} g)`;
+
+    // Suggestions
+    const tips = [];
+    if(aCg < 0.01){
+      tips.push('Coriolis is negligible at this speed/rotation for most everyday tasks.');
+    } else if(aCg < 0.05){
+      tips.push('Mild sideways bias: you’ll notice it in fast turns, jogging, and anything “floaty” like liquids.');
+      tips.push('Basic handrails and clear wayfinding are usually enough.');
+    } else if(aCg < 0.10){
+      tips.push('Noticeable shove: treat corridors like they have a gentle cross-slope.');
+      tips.push('Keep routine routes tangential where possible; build in handholds and wide corners.');
+    } else {
+      tips.push('Strong shove: speed limits (bikes/carts/drones) become a design requirement.');
+      tips.push('Avoid precision tasks while moving; consider putting “quiet labs” in lower-ω zones.');
+    }
+
+    if(Math.abs(vz) > 0.9*v && v>0){
+      tips.push('Pure axial motion has essentially no Coriolis here (because v ∥ ω).');
+    } else if(Math.abs(vx) > Math.abs(vy) && v>0){
+      tips.push('Radial travel produces a tangential shove: stairs/lifts want rails and gentle acceleration profiles.');
+      tips.push('For fluids: drains and splash guards should assume a consistent sideways bias.');
+    } else if(v>0){
+      tips.push('Tangential travel produces an inward/outward shove: wide corridors, non-slip flooring, and handrails help.');
+    }
+
+    if(gEff>0 && aCmag>0){
+      tips.push(`“Feels like a side-slope” of about ${fmt1(tilt)}° relative to down (g_eff).`);
+    }
+
+    if(Number.isFinite(drift) && drift > 0.05){
+      tips.push(`Free jets drift by ~${fmt1(drift*100)} cm over ${fmt1(h)} m of fall; enclose/spray and shorten falls.`);
+    }
+
+    tipsOut.innerHTML = '<ul>' + tips.map(t=>`<li>${t}</li>`).join('') + '</ul>';
+  }
+
+  // Initial sync
+  syncRotationFromRPM();
+  radiusN.value = radius.value;
+  speedN.value = speed.value;
+  recalc();
+})();
+</script>
+</body>
+</html>

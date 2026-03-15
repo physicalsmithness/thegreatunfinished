@@ -1,0 +1,1518 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Lemon Market Simulator (Akerlof-style)</title>
+  <style>
+    :root{
+      --bg0:#070A12;
+      --bg1:#0B1026;
+      --panel: rgba(255,255,255,0.06);
+      --panel2: rgba(255,255,255,0.09);
+      --stroke: rgba(255,255,255,0.14);
+      --stroke2: rgba(255,255,255,0.22);
+      --text: rgba(255,255,255,0.92);
+      --muted: rgba(255,255,255,0.65);
+      --muted2: rgba(255,255,255,0.45);
+      --accent: #7C5CFF;
+      --accent2:#00E5FF;
+      --warn:#FF4D8D;
+      --ok:#5CFFAE;
+      --shadow: 0 18px 60px rgba(0,0,0,0.55);
+      --radius: 18px;
+      --radius2: 14px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: var(--sans);
+      color: var(--text);
+      background:
+        radial-gradient(1200px 800px at 12% 15%, rgba(124,92,255,0.22), transparent 55%),
+        radial-gradient(1000px 700px at 78% 20%, rgba(0,229,255,0.18), transparent 60%),
+        radial-gradient(900px 600px at 55% 85%, rgba(255,77,141,0.12), transparent 58%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+      overflow-x:hidden;
+    }
+    .wrap{
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 18px 16px 26px;
+    }
+    header{
+      display:flex;
+      gap:14px;
+      align-items:flex-end;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .title{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    h1{
+      margin:0;
+      font-size: 20px;
+      letter-spacing: 0.2px;
+      font-weight: 720;
+    }
+    .sub{
+      margin:0;
+      color: var(--muted);
+      font-size: 12.5px;
+      line-height: 1.35;
+      max-width: 900px;
+    }
+    .pillbar{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .pill{
+      border:1px solid var(--stroke);
+      background: linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0.05));
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: var(--muted);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      backdrop-filter: blur(10px);
+      display:flex;
+      gap:10px;
+      align-items:center;
+    }
+    .dot{
+      width:10px;height:10px;border-radius:999px;
+      background: radial-gradient(circle at 30% 30%, #fff, rgba(255,255,255,0.25));
+      box-shadow: 0 0 0 2px rgba(124,92,255,0.25), 0 0 18px rgba(124,92,255,0.35);
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: 420px 1fr;
+      gap: 14px;
+      align-items:start;
+    }
+    @media (max-width: 1050px){
+      .grid{grid-template-columns: 1fr}
+    }
+    .panel{
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+      border:1px solid var(--stroke);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+    .controls{
+      padding: 14px 14px 12px;
+    }
+    .row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .btns{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    button{
+      appearance:none;
+      border:1px solid var(--stroke2);
+      background: linear-gradient(180deg, rgba(124,92,255,0.22), rgba(124,92,255,0.12));
+      color: rgba(255,255,255,0.92);
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-weight: 650;
+      font-size: 12.5px;
+      cursor:pointer;
+      transition: transform .06s ease, filter .15s ease, border-color .15s ease;
+      box-shadow: 0 18px 45px rgba(124,92,255,0.12);
+    }
+    button:hover{filter: brightness(1.07); border-color: rgba(255,255,255,0.28);}
+    button:active{transform: translateY(1px);}
+    button.secondary{
+      background: linear-gradient(180deg, rgba(0,229,255,0.20), rgba(0,229,255,0.10));
+      box-shadow: 0 18px 45px rgba(0,229,255,0.10);
+    }
+    button.ghost{
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+      box-shadow: none;
+    }
+    button.danger{
+      background: linear-gradient(180deg, rgba(255,77,141,0.20), rgba(255,77,141,0.10));
+      box-shadow: 0 18px 45px rgba(255,77,141,0.10);
+    }
+    .kpi{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 12px 0 8px;
+    }
+    .card{
+      border:1px solid var(--stroke);
+      border-radius: 14px;
+      padding: 10px 10px 9px;
+      background: rgba(0,0,0,0.18);
+    }
+    .card .label{
+      font-size: 11px;
+      color: var(--muted2);
+      letter-spacing: 0.25px;
+    }
+    .card .value{
+      font-size: 15px;
+      margin-top: 5px;
+      font-family: var(--mono);
+      color: rgba(255,255,255,0.92);
+    }
+    details{
+      border:1px solid var(--stroke);
+      border-radius: 14px;
+      background: rgba(0,0,0,0.14);
+      padding: 10px 10px 4px;
+      margin-top: 10px;
+    }
+    summary{
+      cursor:pointer;
+      user-select:none;
+      font-weight: 700;
+      color: rgba(255,255,255,0.88);
+      font-size: 12.5px;
+      letter-spacing: 0.2px;
+      outline:none;
+    }
+    .help{
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      margin: 8px 2px 10px;
+    }
+    .ctrl{
+      display:grid;
+      grid-template-columns: 1fr 110px;
+      gap: 10px;
+      padding: 8px 0;
+      border-top: 1px dashed rgba(255,255,255,0.10);
+    }
+    .ctrl:first-of-type{border-top:none;}
+    .ctrl label{
+      display:flex;
+      flex-direction:column;
+      gap: 4px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.86);
+    }
+    .ctrl small{
+      color: var(--muted2);
+      font-size: 11px;
+      line-height: 1.25;
+    }
+    .ctrl .val{
+      display:flex;
+      align-items:center;
+      justify-content:flex-end;
+      gap: 8px;
+      font-family: var(--mono);
+      color: rgba(255,255,255,0.84);
+      font-size: 12px;
+    }
+    input[type="range"]{
+      width:100%;
+      accent-color: var(--accent);
+    }
+    input[type="number"], input[type="text"], select{
+      width: 110px;
+      background: rgba(0,0,0,0.25);
+      border: 1px solid rgba(255,255,255,0.18);
+      color: rgba(255,255,255,0.9);
+      border-radius: 10px;
+      padding: 7px 8px;
+      outline:none;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    select{font-family: var(--sans);}
+    .toggle{
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 0;
+      border-top: 1px dashed rgba(255,255,255,0.10);
+    }
+    .toggle:first-of-type{border-top:none;}
+    .toggle label{
+      font-size: 12px;
+      color: rgba(255,255,255,0.86);
+      display:flex;
+      flex-direction:column;
+      gap: 4px;
+    }
+    .toggle small{color: var(--muted2); font-size: 11px; line-height:1.25}
+    .switch{
+      position:relative;
+      width: 44px;
+      height: 26px;
+      border-radius: 999px;
+      border:1px solid rgba(255,255,255,0.18);
+      background: rgba(0,0,0,0.25);
+      cursor:pointer;
+      flex: 0 0 auto;
+    }
+    .switch::after{
+      content:"";
+      position:absolute;
+      top: 3px; left: 3px;
+      width: 20px; height: 20px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 30%, #fff, rgba(255,255,255,0.35));
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+      box-shadow: 0 10px 18px rgba(0,0,0,0.35);
+    }
+    .switch.on{
+      background: rgba(124,92,255,0.20);
+      border-color: rgba(124,92,255,0.40);
+    }
+    .switch.on::after{
+      transform: translateX(18px);
+      box-shadow: 0 0 0 2px rgba(124,92,255,0.22), 0 10px 18px rgba(0,0,0,0.35);
+    }
+    .viz{
+      padding: 14px;
+      display:flex;
+      flex-direction:column;
+      gap: 12px;
+    }
+    .canvasCard{
+      border:1px solid var(--stroke);
+      border-radius: var(--radius);
+      overflow:hidden;
+      background: rgba(0,0,0,0.16);
+    }
+    .canvasHeader{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.10);
+    }
+    .canvasHeader .h{
+      font-weight: 750;
+      font-size: 12.5px;
+      color: rgba(255,255,255,0.88);
+      letter-spacing: 0.2px;
+    }
+    .canvasHeader .hint{
+      font-size: 11px;
+      color: var(--muted2);
+      font-family: var(--mono);
+    }
+    canvas{
+      width: 100%;
+      height: 360px;
+      display:block;
+    }
+    #agentCanvas{height: 420px;}
+    .footerNote{
+      margin-top: 10px;
+      color: var(--muted2);
+      font-size: 11.5px;
+      line-height: 1.4;
+    }
+    .mono{font-family: var(--mono);}
+    a{color: rgba(160,235,255,0.95); text-decoration:none}
+    a:hover{text-decoration:underline}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="title">
+        <h1>Lemon Market Simulator</h1>
+        <p class="sub">
+          A stylised adverse-selection market (Akerlof-style): sellers know quality; buyers typically don’t.
+          Slide parameters to watch price, trade volume, and average traded quality evolve — including market collapse.
+        </p>
+      </div>
+      <div class="pillbar">
+        <div class="pill"><span class="dot"></span><span class="mono" id="statusText">paused</span></div>
+        <div class="pill"><span>Mode:</span><span class="mono" id="modeText">posted</span></div>
+        <div class="pill"><span>Round:</span><span class="mono" id="roundText">0</span></div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="panel controls">
+        <div class="row">
+          <div class="btns">
+            <button id="btnPlay">Run</button>
+            <button class="secondary" id="btnStep">Step</button>
+            <button class="ghost" id="btnReset">Reset</button>
+            <button class="danger" id="btnReseed">New seed</button>
+          </div>
+        </div>
+
+        <div class="kpi">
+          <div class="card">
+            <div class="label">Price (this round)</div>
+            <div class="value" id="kPrice">—</div>
+          </div>
+          <div class="card">
+            <div class="label">Trades</div>
+            <div class="value" id="kTrades">—</div>
+          </div>
+          <div class="card">
+            <div class="label">Avg quality sold</div>
+            <div class="value" id="kQ">—</div>
+          </div>
+          <div class="card">
+            <div class="label">Buyer belief (E[q])</div>
+            <div class="value" id="kBelief">—</div>
+          </div>
+          <div class="card">
+            <div class="label">Buyer surplus</div>
+            <div class="value" id="kBS">—</div>
+          </div>
+          <div class="card">
+            <div class="label">Seller surplus</div>
+            <div class="value" id="kSS">—</div>
+          </div>
+        </div>
+
+        <details open>
+          <summary>Market & timing</summary>
+          <div class="help">
+            Price formation can be myopic (based on belief) or fixed-point (self-consistent adverse selection).
+            Double-auction adds bid/ask dispersion, but quality info is still asymmetric.
+          </div>
+          <div id="controlsMarket"></div>
+        </details>
+
+        <details>
+          <summary>Population & quality distributions</summary>
+          <div class="help">
+            Sellers draw quality from a two-component Beta mixture: “lemons” vs “good”.
+            You can tune means and concentration (higher concentration → tighter around the mean).
+          </div>
+          <div id="controlsQuality"></div>
+        </details>
+
+        <details>
+          <summary>Costs, valuations & information</summary>
+          <div class="help">
+            Sellers’ reservation price rises with quality; buyers’ willingness-to-pay rises with expected quality.
+            Inspection/information changes selection because informed buyers can reject low quality.
+          </div>
+          <div id="controlsEcon"></div>
+        </details>
+
+        <details>
+          <summary>Matching & behaviour toggles</summary>
+          <div class="help">
+            If rematching is enabled, a rejected trade can try another seller (up to a cap).
+            Turn on “rational expectations price” to see classic collapse behaviour more starkly.
+          </div>
+          <div id="controlsToggles"></div>
+        </details>
+
+        <div class="footerNote">
+          Notes: This is an intentionally simplified laboratory. It captures the core feedback loop:
+          low expected quality → low price → high-quality exit → even lower expected quality. Use it as a sandbox, not a calibrated model.
+        </div>
+      </section>
+
+      <section class="panel viz">
+        <div class="canvasCard">
+          <div class="canvasHeader">
+            <div class="h">History</div>
+            <div class="hint">price · quality · trades</div>
+          </div>
+          <canvas id="chartCanvas" width="1200" height="360"></canvas>
+        </div>
+
+        <div class="canvasCard">
+          <div class="canvasHeader">
+            <div class="h">Agent flow</div>
+            <div class="hint">quality axis (0→1) · sold cars animate</div>
+          </div>
+          <canvas id="agentCanvas" width="1200" height="420"></canvas>
+        </div>
+      </section>
+    </div>
+  </div>
+
+<script>
+/* =========================================================
+   Lemon Market Simulator — single-file, no dependencies.
+   Save as: lemons.html  → open in any modern browser.
+   ========================================================= */
+
+/* ---------- Small utilities ---------- */
+const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
+const lerp  = (a,b,t)=>a+(b-a)*t;
+
+function fmt(x, d=3){
+  if (x === null || x === undefined || Number.isNaN(x)) return "—";
+  if (!Number.isFinite(x)) return String(x);
+  const s = (Math.abs(x) >= 1000) ? x.toFixed(0) : x.toFixed(d);
+  return s.replace(/\.0+$/,"").replace(/(\.\d*?)0+$/,"$1");
+}
+
+function mulberry32(seed){
+  let a = seed >>> 0;
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function randn(rng){ // Box-Muller
+  let u = 0, v = 0;
+  while(u === 0) u = rng();
+  while(v === 0) v = rng();
+  return Math.sqrt(-2.0*Math.log(u)) * Math.cos(2.0*Math.PI*v);
+}
+
+// Marsaglia & Tsang gamma sampler (k>0)
+function gammaSample(rng, k){
+  if (k < 1){
+    // boost to k+1 and adjust
+    const u = rng();
+    return gammaSample(rng, k+1) * Math.pow(u, 1/k);
+  }
+  const d = k - 1/3;
+  const c = 1/Math.sqrt(9*d);
+  while(true){
+    let x = randn(rng);
+    let v = 1 + c*x;
+    if (v <= 0) continue;
+    v = v*v*v;
+    const u = rng();
+    if (u < 1 - 0.0331*(x*x)*(x*x)) return d*v;
+    if (Math.log(u) < 0.5*x*x + d*(1 - v + Math.log(v))) return d*v;
+  }
+}
+
+function betaSample(rng, mean, conc){
+  // alpha=mean*conc, beta=(1-mean)*conc
+  const a = Math.max(1e-6, mean*conc);
+  const b = Math.max(1e-6, (1-mean)*conc);
+  const g1 = gammaSample(rng, a);
+  const g2 = gammaSample(rng, b);
+  return g1/(g1+g2);
+}
+
+function shuffleInPlace(rng, arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(rng()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+/* ---------- Parameters (lots adjustable) ---------- */
+const PARAMS = {
+  // timing / control
+  seed: 1337,
+  totalRounds: 250,
+  roundsPerSecond: 3.5,
+
+  // market structure
+  mechanism: "posted",              // "posted" | "auction"
+  priceFormation: "belief",         // "belief" | "fixedPoint"
+  damping: 0.55,                    // fixed-point damping
+  maxFPiter: 50,
+  fpTol: 1e-4,
+
+  // population sizes
+  nSellers: 520,
+  nBuyers: 520,
+
+  // quality mixture
+  lemonShare: 0.55,                 // proportion of lemons
+  lemonMean: 0.18,
+  lemonConc: 16,
+  goodMean: 0.82,
+  goodConc: 14,
+
+  // seller economics
+  baseCost: 0.18,                   // baseline reservation
+  costSlope: 0.55,                  // reservation increases with quality
+  sellerNoise: 0.03,                // heterogeneity in reservation
+
+  // buyer economics
+  buyerBase: 0.10,                  // baseline value
+  buyerAlpha: 1.10,                 // value per unit quality
+  tasteSigma: 0.12,                 // idiosyncratic noise in valuation
+
+  // info / inspection
+  informedShare: 0.08,              // share of buyers who perfectly observe q after matching
+  inspectProb: 0.22,                // additional probability of inspection by an uninformed buyer
+  inspectCost: 0.03,                // cost paid if inspecting
+  riskAversion: 0.00,               // penalise variance in expected quality (in price formation)
+
+  // auction (if mechanism="auction")
+  markupMax: 0.12,                  // seller ask = reservation + U(0,markupMax)
+
+  // behaviour toggles
+  rematchOnReject: true,
+  maxRematches: 2,
+
+  // visuals
+  showAllDots: true,
+  trailAlpha: 0.10,
+};
+
+/* ---------- DOM wiring ---------- */
+const el = (id)=>document.getElementById(id);
+const statusText = el("statusText");
+const modeText   = el("modeText");
+const roundText  = el("roundText");
+const kPrice  = el("kPrice");
+const kTrades = el("kTrades");
+const kQ      = el("kQ");
+const kBelief = el("kBelief");
+const kBS     = el("kBS");
+const kSS     = el("kSS");
+
+const chartCanvas = el("chartCanvas");
+const agentCanvas = el("agentCanvas");
+const cctx = chartCanvas.getContext("2d");
+const actx = agentCanvas.getContext("2d");
+
+/* ---------- Control builder ---------- */
+function addSlider(container, key, label, help, min, max, step, fmtFn){
+  const wrap = document.createElement("div");
+  wrap.className = "ctrl";
+
+  const lab = document.createElement("label");
+  lab.textContent = label;
+
+  const small = document.createElement("small");
+  small.textContent = help || "";
+  lab.appendChild(small);
+
+  const right = document.createElement("div");
+  right.className = "val";
+
+  const num = document.createElement("input");
+  num.type = "number";
+  num.step = step;
+  num.min = min;
+  num.max = max;
+  num.value = PARAMS[key];
+
+  const rng = document.createElement("input");
+  rng.type = "range";
+  rng.min = min;
+  rng.max = max;
+  rng.step = step;
+  rng.value = PARAMS[key];
+
+  const valSpan = document.createElement("span");
+  valSpan.textContent = (fmtFn ? fmtFn(PARAMS[key]) : fmt(PARAMS[key], 3));
+
+  // layout: left label includes slider below
+  lab.appendChild(rng);
+
+  right.appendChild(valSpan);
+  right.appendChild(num);
+
+  wrap.appendChild(lab);
+  wrap.appendChild(right);
+  container.appendChild(wrap);
+
+  const sync = (v)=>{
+    PARAMS[key] = clamp(+v, +min, +max);
+    rng.value = PARAMS[key];
+    num.value = PARAMS[key];
+    valSpan.textContent = (fmtFn ? fmtFn(PARAMS[key]) : fmt(PARAMS[key], 3));
+    scheduleSoftReset(); // changes apply smoothly without destroying history unless needed
+  };
+
+  rng.addEventListener("input", ()=>sync(rng.value));
+  num.addEventListener("change", ()=>sync(num.value));
+}
+
+function addSelect(container, key, label, help, options){
+  const wrap = document.createElement("div");
+  wrap.className = "ctrl";
+
+  const lab = document.createElement("label");
+  lab.textContent = label;
+
+  const small = document.createElement("small");
+  small.textContent = help || "";
+  lab.appendChild(small);
+
+  const right = document.createElement("div");
+  right.className = "val";
+
+  const sel = document.createElement("select");
+  for(const [value, name] of options){
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = name;
+    sel.appendChild(opt);
+  }
+  sel.value = PARAMS[key];
+
+  const valSpan = document.createElement("span");
+  valSpan.textContent = PARAMS[key];
+  valSpan.className = "mono";
+
+  right.appendChild(valSpan);
+  right.appendChild(sel);
+
+  wrap.appendChild(lab);
+  wrap.appendChild(right);
+  container.appendChild(wrap);
+
+  sel.addEventListener("change", ()=>{
+    PARAMS[key] = sel.value;
+    valSpan.textContent = PARAMS[key];
+    scheduleHardReset(); // changing mechanism/price rule is a structural change
+  });
+}
+
+function addToggle(container, key, label, help){
+  const wrap = document.createElement("div");
+  wrap.className = "toggle";
+
+  const lab = document.createElement("label");
+  lab.textContent = label;
+  const small = document.createElement("small");
+  small.textContent = help || "";
+  lab.appendChild(small);
+
+  const sw = document.createElement("div");
+  sw.className = "switch" + (PARAMS[key] ? " on" : "");
+  sw.tabIndex = 0;
+
+  const set = (v)=>{
+    PARAMS[key] = !!v;
+    sw.className = "switch" + (PARAMS[key] ? " on" : "");
+    scheduleSoftReset();
+  };
+
+  const flip = ()=>set(!PARAMS[key]);
+  sw.addEventListener("click", flip);
+  sw.addEventListener("keydown", (e)=>{ if(e.key==="Enter"||e.key===" "){e.preventDefault();flip();} });
+
+  wrap.appendChild(lab);
+  wrap.appendChild(sw);
+  container.appendChild(wrap);
+}
+
+/* ---------- Build controls ---------- */
+(function buildControls(){
+  const cm = el("controlsMarket");
+  addSlider(cm, "seed", "Seed", "Reproducible randomness; change to explore other worlds.", 1, 999999, 1, (x)=>String(Math.floor(x)));
+  addSlider(cm, "totalRounds", "Total rounds", "How many rounds the timeline can display.", 20, 1200, 1, (x)=>String(Math.floor(x)));
+  addSlider(cm, "roundsPerSecond", "Speed (rounds/sec)", "Simulation pace while running.", 0.5, 12, 0.1, (x)=>fmt(x,1));
+  addSelect(cm, "mechanism", "Trading mechanism", "Posted-price vs double-auction.", [
+    ["posted","posted"],
+    ["auction","double-auction"]
+  ]);
+  addSelect(cm, "priceFormation", "Price formation", "How posted-price is computed each round.", [
+    ["belief","myopic (belief-based)"],
+    ["fixedPoint","fixed-point (rational expectations)"]
+  ]);
+  addSlider(cm, "riskAversion", "Risk aversion", "Penalises quality variance in price formation.", 0, 1.5, 0.01, (x)=>fmt(x,2));
+  addSlider(cm, "damping", "Fixed-point damping", "Stabilises convergence (only if fixed-point).", 0.05, 0.95, 0.01, (x)=>fmt(x,2));
+  addSlider(cm, "maxFPiter", "Fixed-point max iter", "Upper bound on iterations.", 5, 120, 1, (x)=>String(Math.floor(x)));
+  addSlider(cm, "fpTol", "Fixed-point tolerance", "Stopping threshold for convergence.", 1e-6, 1e-2, 1e-6, (x)=>x.toExponential(1));
+
+  const cq = el("controlsQuality");
+  addSlider(cq, "nSellers", "Sellers", "Number of sellers in the population.", 50, 1400, 1, (x)=>String(Math.floor(x)));
+  addSlider(cq, "nBuyers", "Buyers", "Number of potential buyers each round.", 50, 1400, 1, (x)=>String(Math.floor(x)));
+  addSlider(cq, "lemonShare", "Lemon share", "Fraction drawn from the low-quality component.", 0, 1, 0.01, (x)=>fmt(x,2));
+  addSlider(cq, "lemonMean", "Lemon mean", "Average quality among lemons (0..1).", 0.01, 0.49, 0.01, (x)=>fmt(x,2));
+  addSlider(cq, "lemonConc", "Lemon concentration", "Higher → tighter around the mean.", 2, 60, 1, (x)=>String(Math.floor(x)));
+  addSlider(cq, "goodMean", "Good mean", "Average quality among good cars (0..1).", 0.51, 0.99, 0.01, (x)=>fmt(x,2));
+  addSlider(cq, "goodConc", "Good concentration", "Higher → tighter around the mean.", 2, 60, 1, (x)=>String(Math.floor(x)));
+
+  const ce = el("controlsEcon");
+  addSlider(ce, "baseCost", "Seller base cost", "Reservation intercept.", 0, 1.0, 0.01, (x)=>fmt(x,2));
+  addSlider(ce, "costSlope", "Seller cost slope", "Reservation increases with quality.", 0, 1.6, 0.01, (x)=>fmt(x,2));
+  addSlider(ce, "sellerNoise", "Seller reservation noise", "Adds heterogeneity to reservation prices.", 0, 0.2, 0.005, (x)=>fmt(x,3));
+  addSlider(ce, "buyerBase", "Buyer base value", "Value intercept.", -0.2, 0.8, 0.01, (x)=>fmt(x,2));
+  addSlider(ce, "buyerAlpha", "Buyer value slope", "Value per unit of quality.", 0.1, 2.2, 0.01, (x)=>fmt(x,2));
+  addSlider(ce, "tasteSigma", "Buyer taste noise", "Idiosyncratic valuation noise.", 0, 0.6, 0.01, (x)=>fmt(x,2));
+  addSlider(ce, "informedShare", "Informed buyers", "Share who observe quality after matching.", 0, 0.8, 0.01, (x)=>fmt(x,2));
+  addSlider(ce, "inspectProb", "Inspection probability", "Uninformed buyers inspect after matching with this probability.", 0, 1.0, 0.01, (x)=>fmt(x,2));
+  addSlider(ce, "inspectCost", "Inspection cost", "Paid when inspecting (reduces net surplus).", 0, 0.25, 0.005, (x)=>fmt(x,3));
+  addSlider(ce, "markupMax", "Auction markup cap", "In auctions: ask = reservation + U(0,cap).", 0, 0.6, 0.01, (x)=>fmt(x,2));
+
+  const ct = el("controlsToggles");
+  addToggle(ct, "rematchOnReject", "Rematch on rejection", "If a buyer rejects after inspection, try another seller (up to a cap).");
+  addSlider(ct, "maxRematches", "Max rematches", "How many extra attempts are allowed when rematching is enabled.", 0, 12, 1, (x)=>String(Math.floor(x)));
+  addToggle(ct, "showAllDots", "Show all sellers", "If off, only offered/sold sellers are drawn (faster for large N).");
+  addSlider(ct, "trailAlpha", "Visual trail", "Higher values leave shorter trails in the agent flow panel.", 0.02, 0.35, 0.01, (x)=>fmt(x,2));
+})();
+
+/* ---------- Model state ---------- */
+let rng = mulberry32(PARAMS.seed);
+
+let sellers = [];
+let belief = 0.5; // buyer belief about average quality (E[q])
+let round = 0;
+
+let history = {
+  price: [],
+  trades: [],
+  qSold: [],
+  belief: [],
+  buyerSurplus: [],
+  sellerSurplus: [],
+  qOffered: [],
+  qOfferedVar: [],
+};
+
+let running = false;
+let tAccum = 0;
+let lastTs = null;
+let hardResetQueued = false;
+let softResetQueued = false;
+
+let animations = []; // sold-dot animations
+
+function resetRNG(){
+  rng = mulberry32(Math.floor(PARAMS.seed) >>> 0);
+}
+
+function genSellers(){
+  sellers = new Array(Math.floor(PARAMS.nSellers)).fill(0).map((_,i)=>{
+    const isLemon = (rng() < PARAMS.lemonShare);
+    const q = isLemon
+      ? betaSample(rng, PARAMS.lemonMean, PARAMS.lemonConc)
+      : betaSample(rng, PARAMS.goodMean, PARAMS.goodConc);
+
+    const r = PARAMS.baseCost + PARAMS.costSlope*q + PARAMS.sellerNoise*randn(rng);
+    return {
+      id:i,
+      q: clamp(q, 0, 1),
+      r: r,
+      isLemon,
+      offered:false,
+      sold:false,
+    };
+  });
+}
+
+function resetAll({keepSeed=false} = {}){
+  if(!keepSeed) resetRNG();
+  round = 0;
+  belief = priorMeanQuality(); // start at correct prior by default
+  history = { price:[], trades:[], qSold:[], belief:[], buyerSurplus:[], sellerSurplus:[], qOffered:[], qOfferedVar:[] };
+  animations = [];
+  genSellers();
+  syncHUD();
+  drawAll(true);
+}
+
+function priorMeanQuality(){
+  // Monte-Carlo estimate of the mixture mean (fast enough)
+  const n = 7000;
+  let s = 0;
+  const rr = mulberry32((Math.floor(PARAMS.seed) ^ 0x9E3779B9) >>> 0);
+  for(let i=0;i<n;i++){
+    const isL = rr() < PARAMS.lemonShare;
+    const q = isL
+      ? betaSample(rr, PARAMS.lemonMean, PARAMS.lemonConc)
+      : betaSample(rr, PARAMS.goodMean, PARAMS.goodConc);
+    s += q;
+  }
+  return s/n;
+}
+
+/* ---------- Price formation helpers ---------- */
+function offeredStatsAtPrice(p){
+  let sum = 0, sum2 = 0, n = 0;
+  for(const s of sellers){
+    if (s.r <= p){
+      n++;
+      sum += s.q;
+      sum2 += s.q*s.q;
+    }
+  }
+  const mean = n ? sum/n : 0;
+  const var_ = n ? Math.max(0, sum2/n - mean*mean) : 0;
+  return {n, mean, var_};
+}
+
+function computePostedPrice(){
+  // base willingness-to-pay: buyerBase + buyerAlpha*E[q] - riskAversion*Var[q]
+  if (PARAMS.priceFormation === "belief"){
+    // no variance term without an offered set; approximate with current sellers var
+    const stats = offeredStatsAtPrice(1e9); // full pop
+    const p = PARAMS.buyerBase + PARAMS.buyerAlpha*belief - PARAMS.riskAversion*stats.var_;
+    return clamp(p, -1, 3);
+  }
+
+  // fixed point: p = base + alpha*E[q | r(q)<=p] - riskAversion*Var[q | ...]
+  let p = PARAMS.buyerBase + PARAMS.buyerAlpha*belief;
+  p = clamp(p, -1, 3);
+
+  for(let it=0; it<PARAMS.maxFPiter; it++){
+    const st = offeredStatsAtPrice(p);
+    const pStar = PARAMS.buyerBase + PARAMS.buyerAlpha*st.mean - PARAMS.riskAversion*st.var_;
+    const pNew = lerp(p, pStar, clamp(PARAMS.damping, 0.05, 0.95));
+    if (Math.abs(pNew - p) < PARAMS.fpTol) { p = pNew; break; }
+    p = pNew;
+  }
+  return clamp(p, -1, 3);
+}
+
+/* ---------- Trading round ---------- */
+function runRound(){
+  // clear offer/sold flags
+  for(const s of sellers){ s.offered = false; s.sold = false; }
+
+  const pricePosted = computePostedPrice();
+  const mode = PARAMS.mechanism;
+
+  let price = pricePosted;
+  let trades = 0, qSum = 0;
+  let buyerSurplus = 0, sellerSurplus = 0;
+
+  // Pre-draw buyer characteristics for the round
+  const nB = Math.floor(PARAMS.nBuyers);
+  const buyerNoise = new Array(nB);
+  const buyerInformed = new Array(nB);
+  for(let i=0;i<nB;i++){
+    buyerNoise[i] = PARAMS.tasteSigma * randn(rng);
+    buyerInformed[i] = (rng() < PARAMS.informedShare);
+  }
+
+  // Offered set based on reservation vs price (posted) or participation (auction)
+  let offeredIdx = [];
+  if (mode === "posted"){
+    for(let i=0;i<sellers.length;i++){
+      if (sellers[i].r <= price){
+        sellers[i].offered = true;
+        offeredIdx.push(i);
+      }
+    }
+  } else {
+    // auction: all sellers can submit an ask; participation still depends on reservation (they won't ask below it)
+    for(let i=0;i<sellers.length;i++){
+      sellers[i].offered = true;
+      offeredIdx.push(i);
+    }
+  }
+
+  // Compute offered stats for display
+  let offeredMean = 0, offeredVar = 0;
+  if (offeredIdx.length){
+    let s1=0, s2=0;
+    for(const i of offeredIdx){ const q = sellers[i].q; s1+=q; s2+=q*q; }
+    offeredMean = s1/offeredIdx.length;
+    offeredVar = Math.max(0, s2/offeredIdx.length - offeredMean*offeredMean);
+  }
+
+  if (mode === "posted"){
+    // Determine which buyers accept based on EXPECTED quality
+    const expectedQ = belief;
+    const willingBuyers = [];
+    for(let i=0;i<nB;i++){
+      const vExp = PARAMS.buyerBase + PARAMS.buyerAlpha*expectedQ + buyerNoise[i];
+      if (vExp >= price) willingBuyers.push(i);
+    }
+
+    // Match buyers to sellers
+    shuffleInPlace(rng, offeredIdx);
+    shuffleInPlace(rng, willingBuyers);
+    let maxPairs = Math.min(offeredIdx.length, willingBuyers.length);
+
+    // Optional rematching logic on rejection
+    let sellerCursor = 0;
+    let attempts = 0;
+
+    while (sellerCursor < offeredIdx.length && willingBuyers.length && attempts < offeredIdx.length + nB){
+      attempts++;
+
+      const si = offeredIdx[sellerCursor];
+      const bi = willingBuyers.pop();
+
+      const s = sellers[si];
+      const q = s.q;
+
+      // inspection decision
+      const inspect = buyerInformed[bi] || (rng() < PARAMS.inspectProb);
+      const inspectionCost = inspect ? PARAMS.inspectCost : 0;
+
+      // realised value depends on true quality (if purchase happens)
+      const vTrue = PARAMS.buyerBase + PARAMS.buyerAlpha*q + buyerNoise[bi];
+
+      let accept = false;
+      if (inspect){
+        accept = (vTrue - inspectionCost >= price);
+      } else {
+        // uninformed accepts if their expectation supported it earlier
+        accept = true;
+      }
+
+      if (accept){
+        // trade executes
+        s.sold = true;
+        trades++;
+        qSum += q;
+
+        const bSurp = (vTrue - price - inspectionCost);
+        const sSurp = (price - s.r);
+
+        buyerSurplus += bSurp;
+        sellerSurplus += sSurp;
+
+        spawnAnimation(si, q);
+
+        sellerCursor++; // move to next seller
+      } else {
+        // rejected
+        if (PARAMS.rematchOnReject){
+          // try another seller for the buyer (up to cap), by putting buyer back in the pool
+          // Note: buyer may still be willing at price based on expectation; keep them.
+          let rem = 0;
+          while(rem < PARAMS.maxRematches && sellerCursor < offeredIdx.length-1){
+            rem++;
+            sellerCursor++; // move to new seller
+            const si2 = offeredIdx[sellerCursor];
+            const s2 = sellers[si2];
+            const q2 = s2.q;
+
+            const inspect2 = buyerInformed[bi] || (rng() < PARAMS.inspectProb);
+            const cost2 = inspect2 ? PARAMS.inspectCost : 0;
+            const vTrue2 = PARAMS.buyerBase + PARAMS.buyerAlpha*q2 + buyerNoise[bi];
+
+            let accept2 = false;
+            if (inspect2) accept2 = (vTrue2 - cost2 >= price);
+            else accept2 = true;
+
+            if (accept2){
+              s2.sold = true;
+              trades++;
+              qSum += q2;
+              buyerSurplus += (vTrue2 - price - cost2);
+              sellerSurplus += (price - s2.r);
+              spawnAnimation(si2, q2);
+              sellerCursor++; // consume this seller and move ahead for next loop
+              break;
+            }
+          }
+        } else {
+          sellerCursor++; // seller remains unsold; move on
+        }
+      }
+
+      // termination
+      if (sellerCursor >= maxPairs) break;
+    }
+
+  } else {
+    // -----------------------
+    // Double-auction (stylised)
+    // -----------------------
+    // Sellers submit asks; buyers submit bids based on belief (quality still asymmetric)
+    // Match highest bids with lowest asks while bid >= ask.
+    const asks = [];
+    for(const i of offeredIdx){
+      const s = sellers[i];
+      const ask = s.r + rng()*PARAMS.markupMax;
+      asks.push({i, ask});
+    }
+    asks.sort((a,b)=>a.ask-b.ask);
+
+    const bids = [];
+    const expectedQ = belief;
+    for(let bi=0;bi<nB;bi++){
+      const bid = PARAMS.buyerBase + PARAMS.buyerAlpha*expectedQ + buyerNoise[bi];
+      bids.push({bi, bid});
+    }
+    bids.sort((a,b)=>b.bid-a.bid);
+
+    let aPtr=0, bPtr=0;
+    while(aPtr < asks.length && bPtr < bids.length){
+      const A = asks[aPtr];
+      const B = bids[bPtr];
+      if (B.bid < A.ask) break;
+
+      // tentative price: midpoint (could also use ask or bid)
+      const p = 0.5*(B.bid + A.ask);
+      const s = sellers[A.i];
+      const q = s.q;
+
+      const inspect = buyerInformed[B.bi] || (rng() < PARAMS.inspectProb);
+      const inspectionCost = inspect ? PARAMS.inspectCost : 0;
+      const vTrue = PARAMS.buyerBase + PARAMS.buyerAlpha*q + buyerNoise[B.bi];
+
+      let accept = true;
+      if (inspect) accept = (vTrue - inspectionCost >= p);
+
+      if (accept){
+        s.sold = true;
+        trades++;
+        qSum += q;
+        buyerSurplus += (vTrue - p - inspectionCost);
+        sellerSurplus += (p - s.r);
+        spawnAnimation(A.i, q);
+
+        price = (price* (trades-1) + p) / trades; // average price over trades
+
+        aPtr++; bPtr++;
+      } else {
+        // reject: move to next buyer (or seller); simplest: next buyer
+        bPtr++;
+        if (!PARAMS.rematchOnReject) aPtr++;
+      }
+    }
+
+    // if no trades, keep computed posted price for display unless we prefer NaN
+    if (trades === 0) price = pricePosted;
+  }
+
+  const qAvgSold = trades ? (qSum / trades) : 0;
+
+  // belief update (simple exponential smoothing)
+  // If no trades, still decay slightly toward prior to avoid freezing.
+  const lr = 0.18; // fixed, but you can make this adjustable if you want (easy)
+  const target = trades ? qAvgSold : priorMeanQuality();
+  belief = (1-lr)*belief + lr*target;
+
+  // Push history
+  history.price.push(price);
+  history.trades.push(trades);
+  history.qSold.push(qAvgSold);
+  history.belief.push(belief);
+  history.buyerSurplus.push(buyerSurplus);
+  history.sellerSurplus.push(sellerSurplus);
+  history.qOffered.push(offeredMean);
+  history.qOfferedVar.push(offeredVar);
+
+  // cap history length
+  const cap = Math.max(20, Math.floor(PARAMS.totalRounds));
+  for(const k in history){
+    if (history[k].length > cap) history[k].shift();
+  }
+
+  round++;
+  syncHUD({price, trades, qAvgSold, buyerSurplus, sellerSurplus});
+}
+
+/* ---------- Animation: sold dots travel across ---------- */
+function spawnAnimation(sellerIndex, q){
+  // map quality to y in agentCanvas coordinate space later; store q and time
+  animations.push({
+    q,
+    t: 0,
+    dur: 0.55 + 0.25*rng(),
+    jitter: (rng()-0.5)*0.02
+  });
+}
+
+/* ---------- Rendering ---------- */
+function resizeCanvasesToCSS(){
+  // Keep the internal pixel resolution in line with CSS size and devicePixelRatio
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+
+  function fit(canvas){
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.max(300, Math.floor(rect.width * dpr));
+    const h = Math.max(240, Math.floor(rect.height * dpr));
+    if (canvas.width !== w || canvas.height !== h){
+      canvas.width = w;
+      canvas.height = h;
+    }
+  }
+  fit(chartCanvas);
+  fit(agentCanvas);
+}
+
+function paintBackground(ctx, w, h){
+  // soft vignette + scanline-ish
+  const g = ctx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,"rgba(255,255,255,0.06)");
+  g.addColorStop(1,"rgba(255,255,255,0.02)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,w,h);
+
+  // vignette
+  const r = Math.max(w,h);
+  const vg = ctx.createRadialGradient(w*0.5,h*0.45, r*0.10, w*0.5,h*0.45, r*0.65);
+  vg.addColorStop(0,"rgba(0,0,0,0)");
+  vg.addColorStop(1,"rgba(0,0,0,0.55)");
+  ctx.fillStyle = vg;
+  ctx.fillRect(0,0,w,h);
+}
+
+function drawChart(){
+  const ctx = cctx;
+  const w = chartCanvas.width, h = chartCanvas.height;
+
+  ctx.clearRect(0,0,w,h);
+  paintBackground(ctx,w,h);
+
+  const pad = {l:54, r:18, t:18, b:40};
+  const innerW = w - pad.l - pad.r;
+  const innerH = h - pad.t - pad.b;
+
+  // Determine scales
+  const P = history.price;
+  const Q = history.qSold;
+  const T = history.trades;
+
+  const n = P.length;
+  if (n === 0){
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.font = `600 ${Math.floor(12*(w/1200)+10)}px ${getComputedStyle(document.body).fontFamily}`;
+    ctx.fillText("No data yet — press Run or Step.", pad.l, pad.t + 24);
+    return;
+  }
+
+  const pMin = Math.min(...P, 0);
+  const pMax = Math.max(...P, 1);
+  const tMax = Math.max(...T, 1);
+
+  const x = (i)=>pad.l + (n===1 ? 0 : (i/(n-1))*innerW);
+  const yP = (p)=>pad.t + (1 - (p - pMin)/(pMax - pMin + 1e-9))*innerH;
+  const yQ = (q)=>pad.t + (1 - q)*innerH; // 0..1
+  const yT = (t)=>pad.t + (1 - (t/tMax))*innerH;
+
+  // grid
+  ctx.strokeStyle = "rgba(255,255,255,0.10)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([6,6]);
+  for(let k=0;k<=4;k++){
+    const yy = pad.t + (k/4)*innerH;
+    ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(pad.l+innerW, yy); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // trades (faint bars)
+  ctx.fillStyle = "rgba(0,229,255,0.12)";
+  for(let i=0;i<n;i++){
+    const bw = Math.max(2, innerW/(n*1.6));
+    const xx = x(i) - bw/2;
+    const yy = yT(T[i]);
+    ctx.fillRect(xx, yy, bw, pad.t+innerH - yy);
+  }
+
+  // price line
+  ctx.strokeStyle = "rgba(124,92,255,0.95)";
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  for(let i=0;i<n;i++){
+    const xx = x(i), yy = yP(P[i]);
+    if(i===0) ctx.moveTo(xx,yy); else ctx.lineTo(xx,yy);
+  }
+  ctx.stroke();
+
+  // quality sold line
+  ctx.strokeStyle = "rgba(92,255,174,0.85)";
+  ctx.lineWidth = 2.0;
+  ctx.beginPath();
+  for(let i=0;i<n;i++){
+    const xx = x(i), yy = yQ(Q[i]);
+    if(i===0) ctx.moveTo(xx,yy); else ctx.lineTo(xx,yy);
+  }
+  ctx.stroke();
+
+  // belief line (dotted)
+  ctx.strokeStyle = "rgba(255,255,255,0.55)";
+  ctx.lineWidth = 1.6;
+  ctx.setLineDash([3,6]);
+  ctx.beginPath();
+  for(let i=0;i<n;i++){
+    const xx = x(i), yy = yQ(history.belief[i]);
+    if(i===0) ctx.moveTo(xx,yy); else ctx.lineTo(xx,yy);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // axes labels
+  ctx.fillStyle = "rgba(255,255,255,0.75)";
+  ctx.font = `600 ${Math.floor(11*(w/1200)+10)}px ${getComputedStyle(document.body).fontFamily}`;
+  ctx.fillText("Price", 14, pad.t + 6);
+  ctx.fillText("Quality (sold/belief)", 14, pad.t + 24);
+  ctx.fillText("Trades (bars)", 14, pad.t + 42);
+
+  // x label
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.font = `500 ${Math.floor(10*(w/1200)+9)}px ${getComputedStyle(document.body).fontFamily}`;
+  ctx.fillText("time →", pad.l + innerW - 54, pad.t + innerH + 30);
+
+  // marker at last point
+  const iLast = n-1;
+  const xL = x(iLast);
+  ctx.fillStyle = "rgba(124,92,255,0.95)";
+  ctx.beginPath(); ctx.arc(xL, yP(P[iLast]), 4.4, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = "rgba(92,255,174,0.9)";
+  ctx.beginPath(); ctx.arc(xL, yQ(Q[iLast]), 4.1, 0, Math.PI*2); ctx.fill();
+}
+
+function drawAgents(dt){
+  const ctx = actx;
+  const w = agentCanvas.width, h = agentCanvas.height;
+
+  // trail: semi-transparent fill to create motion blur
+  ctx.fillStyle = `rgba(0,0,0,${clamp(PARAMS.trailAlpha,0.02,0.35)})`;
+  ctx.fillRect(0,0,w,h);
+
+  // base overlay (subtle)
+  ctx.save();
+  ctx.globalAlpha = 0.20;
+  paintBackground(ctx,w,h);
+  ctx.restore();
+
+  const pad = {l:34, r:34, t:22, b:24};
+  const innerW = w - pad.l - pad.r;
+  const innerH = h - pad.t - pad.b;
+
+  // lanes: sellers left, buyers right
+  const xSell = pad.l + innerW*0.18;
+  const xBuy  = pad.l + innerW*0.82;
+
+  const yFromQ = (q)=>pad.t + (1-q)*innerH;
+
+  // axes and labels
+  ctx.strokeStyle = "rgba(255,255,255,0.14)";
+  ctx.lineWidth = 1.2;
+
+  ctx.beginPath();
+  ctx.moveTo(xSell, pad.t);
+  ctx.lineTo(xSell, pad.t+innerH);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(xBuy, pad.t);
+  ctx.lineTo(xBuy, pad.t+innerH);
+  ctx.stroke();
+
+  // quality ticks
+  ctx.strokeStyle = "rgba(255,255,255,0.10)";
+  ctx.setLineDash([6,7]);
+  for(let k=0;k<=4;k++){
+    const q = k/4;
+    const yy = yFromQ(q);
+    ctx.beginPath();
+    ctx.moveTo(pad.l, yy);
+    ctx.lineTo(pad.l+innerW, yy);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = "rgba(255,255,255,0.70)";
+  ctx.font = `700 ${Math.floor(12*(w/1200)+10)}px ${getComputedStyle(document.body).fontFamily}`;
+  ctx.fillText("Sellers", xSell-20, pad.t - 6);
+  ctx.fillText("Buyers", xBuy-18,  pad.t - 6);
+
+  ctx.fillStyle = "rgba(255,255,255,0.50)";
+  ctx.font = `600 ${Math.floor(10*(w/1200)+9)}px ${getComputedStyle(document.body).fontFamily}`;
+  ctx.fillText("q=1", pad.l+4, pad.t+8);
+  ctx.fillText("q=0", pad.l+4, pad.t+innerH-4);
+
+  // Draw seller dots
+  const drawAll = PARAMS.showAllDots;
+  const dotR = Math.max(1.4, Math.min(3.0, 1.9*(w/1200)));
+
+  // compute a stable x jitter per seller from id (cheap hash)
+  function xJitter(id){
+    let z = (id*2654435761) >>> 0;
+    z ^= z >>> 16; z = Math.imul(z, 2246822507) >>> 0;
+    z ^= z >>> 13; z = Math.imul(z, 3266489909) >>> 0;
+    z ^= z >>> 16;
+    return (z/4294967296 - 0.5);
+  }
+
+  for(const s of sellers){
+    if (!drawAll && !(s.offered || s.sold)) continue;
+    const yy = yFromQ(s.q);
+    const jitter = xJitter(s.id) * innerW*0.04;
+    const xx = xSell + jitter;
+
+    // colour by lemon/good, with offered/sold emphasis
+    const baseAlpha = s.offered ? 0.85 : 0.35;
+    const alpha = s.sold ? 0.15 : baseAlpha;
+    const col = s.isLemon ? `rgba(255,77,141,${alpha})` : `rgba(92,255,174,${alpha})`;
+
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(xx, yy, dotR, 0, Math.PI*2);
+    ctx.fill();
+
+    // glow for offered
+    if (s.offered && !s.sold){
+      ctx.strokeStyle = s.isLemon ? "rgba(255,77,141,0.25)" : "rgba(92,255,174,0.25)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(xx, yy, dotR+2.6, 0, Math.PI*2);
+      ctx.stroke();
+    }
+  }
+
+  // animate sold dots travelling from seller lane to buyer lane
+  const newAnims = [];
+  for(const a of animations){
+    a.t += dt;
+    const t = clamp(a.t / a.dur, 0, 1);
+
+    // ease
+    const e = t<0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2;
+
+    const yy = yFromQ(clamp(a.q + a.jitter, 0, 1));
+    const xx = lerp(xSell, xBuy, e);
+
+    // colour: greener for higher q, pinker for lower q
+    const hue = lerp(325, 145, clamp(a.q,0,1));
+    ctx.fillStyle = `hsla(${hue}, 95%, 65%, ${lerp(0.9, 0.0, t)})`;
+    ctx.beginPath();
+    ctx.arc(xx, yy, dotR+1.3, 0, Math.PI*2);
+    ctx.fill();
+
+    // tail streak
+    ctx.strokeStyle = `hsla(${hue}, 95%, 65%, ${lerp(0.55, 0.0, t)})`;
+    ctx.lineWidth = Math.max(1.2, dotR);
+    ctx.beginPath();
+    ctx.moveTo(xx - innerW*0.03, yy);
+    ctx.lineTo(xx, yy);
+    ctx.stroke();
+
+    if (t < 1) newAnims.push(a);
+  }
+  animations = newAnims;
+}
+
+function drawAll(forceFullClear=false){
+  resizeCanvasesToCSS();
+  if (forceFullClear){
+    cctx.clearRect(0,0,chartCanvas.width,chartCanvas.height);
+    actx.clearRect(0,0,agentCanvas.width,agentCanvas.height);
+  }
+  drawChart();
+
+  // For agent canvas, if forced clear, fill once with background
+  if (forceFullClear){
+    actx.fillStyle = "rgba(0,0,0,0.55)";
+    actx.fillRect(0,0,agentCanvas.width,agentCanvas.height);
+    paintBackground(actx, agentCanvas.width, agentCanvas.height);
+  }
+}
+
+/* ---------- HUD ---------- */
+function syncHUD(last = null){
+  modeText.textContent = (PARAMS.mechanism === "auction") ? "double-auction" : "posted";
+  roundText.textContent = String(round);
+
+  if (!last){
+    const p = history.price.at(-1);
+    const t = history.trades.at(-1);
+    const q = history.qSold.at(-1);
+    const b = history.belief.at(-1);
+    const bs = history.buyerSurplus.at(-1);
+    const ss = history.sellerSurplus.at(-1);
+    kPrice.textContent = fmt(p,3);
+    kTrades.textContent = fmt(t,0);
+    kQ.textContent = fmt(q,3);
+    kBelief.textContent = fmt(b,3);
+    kBS.textContent = fmt(bs,3);
+    kSS.textContent = fmt(ss,3);
+  } else {
+    kPrice.textContent  = fmt(last.price,3);
+    kTrades.textContent = fmt(last.trades,0);
+    kQ.textContent      = fmt(last.qAvgSold,3);
+    kBelief.textContent = fmt(belief,3);
+    kBS.textContent     = fmt(last.buyerSurplus,3);
+    kSS.textContent     = fmt(last.sellerSurplus,3);
+  }
+}
+
+/* ---------- Reset queues ---------- */
+function scheduleHardReset(){ hardResetQueued = true; }
+function scheduleSoftReset(){ softResetQueued = true; }
+
+/* ---------- Main loop ---------- */
+function tick(ts){
+  if (lastTs === null) lastTs = ts;
+  const dt = Math.min(0.04, (ts - lastTs)/1000);
+  lastTs = ts;
+
+  if (hardResetQueued){
+    hardResetQueued = false;
+    resetAll({keepSeed:true});
+  } else if (softResetQueued){
+    // soft reset: regenerate sellers & reset belief/prior, but keep history unless structure changed.
+    // Here we choose to keep history; regenerate seller pop + belief so the next steps reflect new settings.
+    softResetQueued = false;
+    resetRNG();
+    belief = priorMeanQuality();
+    genSellers();
+  }
+
+  if (running){
+    tAccum += dt;
+    const stepTime = 1 / Math.max(0.2, PARAMS.roundsPerSecond);
+    while(tAccum >= stepTime){
+      tAccum -= stepTime;
+      if (round >= Math.floor(PARAMS.totalRounds)){
+        running = false;
+        statusText.textContent = "paused";
+        break;
+      }
+      runRound();
+      syncHUD();
+      drawChart();
+    }
+  }
+
+  drawAgents(dt);
+  requestAnimationFrame(tick);
+}
+
+/* ---------- Buttons ---------- */
+el("btnPlay").addEventListener("click", ()=>{
+  running = !running;
+  statusText.textContent = running ? "running" : "paused";
+  el("btnPlay").textContent = running ? "Pause" : "Run";
+});
+
+el("btnStep").addEventListener("click", ()=>{
+  if (round >= Math.floor(PARAMS.totalRounds)) return;
+  runRound();
+  syncHUD();
+  drawChart();
+});
+
+el("btnReset").addEventListener("click", ()=>{
+  running = false;
+  statusText.textContent = "paused";
+  el("btnPlay").textContent = "Run";
+  resetAll({keepSeed:true});
+});
+
+el("btnReseed").addEventListener("click", ()=>{
+  // random seed
+  PARAMS.seed = 1 + Math.floor(Math.random()*999999);
+  running = false;
+  statusText.textContent = "paused";
+  el("btnPlay").textContent = "Run";
+  resetAll({keepSeed:false});
+});
+
+/* ---------- Start ---------- */
+window.addEventListener("resize", ()=>drawAll(true));
+resetAll({keepSeed:false});
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

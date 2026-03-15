@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Burj Khalifa Physics: Advanced</title>
+    <style>
+        :root {
+            --bg-color: #222;
+            --panel-bg: #333;
+            --accent: #ff4757;
+            --screen-bg: #000;
+            --lcd-color: #7bed9f;
+        }
+
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: var(--bg-color);
+            color: white;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- LEFT PANEL: CONTROLS --- */
+        #left-panel {
+            width: 350px;
+            background: #1e1e1e;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            border-right: 4px solid #444;
+            box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+
+        h2 { margin-top: 0; text-align: center; color: #ccc; }
+
+        .control-group {
+            background: #2c2c2c;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #444;
+            text-align: center;
+        }
+
+        /* The Tower Visual */
+        #tower-track {
+            height: 200px;
+            width: 40px;
+            background: #444;
+            margin: 0 auto 10px auto;
+            position: relative;
+            border-radius: 4px;
+        }
+        #tower-car {
+            width: 100%;
+            height: 10px;
+            background: var(--accent);
+            position: absolute;
+            bottom: 0;
+            transition: bottom 0.1s linear;
+        }
+
+        /* The Big Slider */
+        .slider-wrapper {
+            height: 300px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        input[type=range][orient=vertical] {
+            writing-mode: bt-lr; /* IE */
+            appearance: slider-vertical; /* WebKit */
+            width: 60px;
+            height: 100%;
+        }
+
+        .toggle-btn {
+            background: #555;
+            color: white;
+            border: none;
+            padding: 10px;
+            width: 100%;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        .toggle-btn.active {
+            background: var(--accent);
+            box-shadow: 0 0 10px var(--accent);
+        }
+
+        /* --- RIGHT PANEL: SIMULATION --- */
+        #right-panel {
+            flex-grow: 1;
+            position: relative;
+            background: linear-gradient(to bottom, #1a1a1a, #000);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* The Lift Interior */
+        #lift-interior {
+            width: 400px;
+            height: 500px;
+            background: #dcdcdc;
+            border: 15px solid #555;
+            position: relative;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.2);
+            overflow: hidden; /* Keep person inside */
+        }
+
+        /* Ceiling/Floor Textures */
+        .floor { position: absolute; bottom: 0; width: 100%; height: 20px; background: #999; border-top: 2px solid #777; }
+        .ceiling { position: absolute; top: 0; width: 100%; height: 20px; background: #999; border-bottom: 2px solid #777; }
+
+        /* The Person */
+        #person {
+            width: 60px;
+            height: 140px;
+            background: #3498db;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: 20px; /* Starts on floor */
+            border-radius: 10px 10px 0 0;
+        }
+        #person-head {
+            width: 40px;
+            height: 40px;
+            background: #f1c40f;
+            border-radius: 50%;
+            position: absolute;
+            top: -20px;
+            left: 10px;
+        }
+        /* Simple limbs for animation context */
+        .limb { position: absolute; background: #2980b9; }
+        .arm-l { width: 10px; height: 60px; top: 10px; left: -5px; transform-origin: top; }
+        .arm-r { width: 10px; height: 60px; top: 10px; right: -5px; transform-origin: top; }
+
+        /* The Scales (Visual) */
+        #scale-platform {
+            width: 120px;
+            height: 10px;
+            background: #2c3e50;
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-radius: 2px;
+        }
+
+        /* --- HUD / DISPLAYS --- */
+        #hud-top-right {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            text-align: right;
+        }
+        
+        .hud-box {
+            background: rgba(0,0,0,0.8);
+            border: 2px solid #555;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            min-width: 200px;
+        }
+
+        .label { font-size: 0.8em; color: #aaa; text-transform: uppercase; letter-spacing: 1px;}
+        .big-readout { font-size: 2.5em; color: var(--lcd-color); font-weight: bold; text-shadow: 0 0 5px var(--lcd-color); }
+        .med-readout { font-size: 1.5em; color: white; }
+
+        /* Scale Readout (Overlay on scale or near it) */
+        #scale-display-container {
+            position: absolute;
+            bottom: 40px; /* Floating above scale */
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            padding: 10px 20px;
+            border: 2px solid #fff;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+    </style>
+</head>
+<body>
+
+<div id="left-panel">
+    <h2>ENGINEERING</h2>
+    
+    <div class="control-group">
+        <div class="label">Burj Khalifa Status (828m)</div>
+        <div id="tower-track">
+            <div id="tower-car"></div>
+        </div>
+        <div class="label">Current Height</div>
+        <div id="height-mini" style="font-size: 1.2em; color: var(--accent);">0 m</div>
+    </div>
+
+    <div class="control-group" style="flex-grow: 1;">
+        <div class="label">Vertical Acceleration Control</div>
+        <div style="font-size: 0.8em; color: #888; margin-bottom: 10px;">Pull down to drop (-), up to lift (+)</div>
+        
+        <div class="slider-wrapper">
+            <div>
+                <div>+25</div>
+                <div style="height: 200px; border-left: 1px dashed #555;"></div>
+                <div>-25</div>
+            </div>
+            <input type="range" id="accel-slider" min="-25" max="25" step="0.1" value="0" orient="vertical">
+        </div>
+        
+        <div style="margin-top: 10px;">
+            <span id="input-readout">0.0</span> m/s²
+        </div>
+    </div>
+
+    <div class="control-group">
+        <button id="autopilot-btn" class="toggle-btn" onclick="toggleAutopilot()">AUTOPILOT: OFF</button>
+        <div class="label" style="margin-top: 5px;">Safely stops at top</div>
+    </div>
+    
+    <div class="control-group">
+        <div class="label">Payload Mass</div>
+        <input type="number" id="mass-input" value="80" style="width: 60px; background: #444; color: white; border: none; padding: 5px;"> kg
+        <div style="margin-top: 5px;">
+            <label><input type="radio" name="unit" value="kg" checked> kg</label>
+            <label><input type="radio" name="unit" value="N"> N</label>
+        </div>
+    </div>
+</div>
+
+<div id="right-panel">
+    
+    <div id="hud-top-right">
+        <div class="hud-box">
+            <div class="label">Altitude</div>
+            <div class="big-readout"><span id="altitude-display">000.0</span> <span style="font-size:0.4em">m</span></div>
+        </div>
+        <div class="hud-box">
+            <div class="label">Vertical Velocity</div>
+            <div class="med-readout"><span id="velocity-display">0.0</span> m/s</div>
+        </div>
+    </div>
+
+    <div id="lift-interior">
+        <div class="ceiling"></div>
+        
+        <div id="person">
+            <div id="person-head"></div>
+            <div class="limb arm-l"></div>
+            <div class="limb arm-r"></div>
+        </div>
+
+        <div id="scale-platform"></div>
+        <div class="floor"></div>
+
+        <div id="scale-display-container">
+            <div class="label">SCALE READING</div>
+            <div class="big-readout" id="scale-readout">80.0</div>
+            <div class="label" id="scale-unit">kg</div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // --- CONFIGURATION ---
+    const BURJ_HEIGHT = 828;
+    const G = 9.81;
+    const LIFT_HEIGHT_INTERNAL = 500; // px
+    const PERSON_HEIGHT = 140; // px
+    const SCALE_HEIGHT = 10; // px
+    const CEILING_PADDING = 20;
+    const FLOOR_PADDING = 20;
+
+    // --- STATE ---
+    let state = {
+        liftHeight: 0,      // meters
+        liftVel: 0,         // m/s
+        liftAccel: 0,       // m/s^2 (current effective acceleration)
+        
+        personY: 0,         // px (relative to floor of lift. 0 = touching scales)
+        personVelY: 0,      // px/frame
+        
+        mass: 80,
+        autopilot: false,
+        unit: 'kg'
+    };
+
+    // --- DOM ELEMENTS ---
+    const elSlider = document.getElementById('accel-slider');
+    const elInputReadout = document.getElementById('input-readout');
+    const elTowerCar = document.getElementById('tower-car');
+    const elHeightMini = document.getElementById('height-mini');
+    
+    const elAltitude = document.getElementById('altitude-display');
+    const elVelocity = document.getElementById('velocity-display');
+    const elScaleReadout = document.getElementById('scale-readout');
+    const elScaleUnit = document.getElementById('scale-unit');
+    
+    const elPerson = document.getElementById('person');
+    const elAutopilotBtn = document.getElementById('autopilot-btn');
+    const elMassInput = document.getElementById('mass-input');
+    const elUnitRadios = document.getElementsByName('unit');
+
+    // --- PHYSICS LOOP ---
+    let lastTime = performance.now();
+
+    function updatePhysics(time) {
+        const dt = (time - lastTime) / 1000; // Delta time in seconds
+        lastTime = time;
+
+        // 1. GET INPUTS
+        let desiredAccel = parseFloat(elSlider.value);
+        state.mass = parseFloat(elMassInput.value) || 80;
+        
+        // Handle Unit Selection
+        elUnitRadios.forEach(r => { if(r.checked) state.unit = r.value; });
+
+        // 2. AUTOPILOT LOGIC
+        if (state.autopilot) {
+            const distToTop = BURJ_HEIGHT - state.liftHeight;
+            
+            // Simple braking logic
+            if (distToTop < 200 && state.liftVel > 0) {
+                // Calculate required deceleration to stop exactly at 0
+                // v^2 = 2ad => a = -v^2 / 2d
+                const requiredDecel = -(state.liftVel * state.liftVel) / (2 * distToTop);
+                
+                // Clamp deceleration so we don't snap necks unless necessary
+                // But prioritize not crashing
+                desiredAccel = requiredDecel;
+                
+                // Fine tune to prevent creeping or negative oscillation
+                if (distToTop < 0.1) {
+                    state.liftVel = 0;
+                    state.liftHeight = BURJ_HEIGHT;
+                    desiredAccel = 0;
+                }
+            } else if (state.liftHeight >= BURJ_HEIGHT) {
+                desiredAccel = 0;
+            }
+        }
+
+        // 3. LIFT PHYSICS
+        state.liftAccel = desiredAccel;
+        state.liftVel += state.liftAccel * dt;
+        state.liftHeight += state.liftVel * dt;
+
+        // Hard Boundaries (Burj Khalifa Top/Bottom)
+        if (state.liftHeight < 0) {
+            state.liftHeight = 0;
+            state.liftVel = 0; // Crash into ground
+            if(state.liftAccel < 0) state.liftAccel = 0;
+        }
+        if (state.liftHeight > BURJ_HEIGHT) {
+            state.liftHeight = BURJ_HEIGHT;
+            state.liftVel = 0; // Crash into roof
+            if(state.liftAccel > 0) state.liftAccel = 0;
+        }
+
+        // 4. PERSON PHYSICS (Inside the box)
+        // Newton's Laws: The person is an object inside a frame of reference.
+        // Effective gravity inside lift = g + lift_acceleration
+        // However, it's easier to simulate the person's absolute physics 
+        // and transform them to local coordinates, OR simulate local forces.
+        
+        // Local Force approach:
+        // Downward force relative to floor = g + liftAccel
+        // If (g + liftAccel) is NEGATIVE, the floor is accelerating down faster than gravity.
+        // The person "falls up" relative to the floor.
+        
+        const effectiveGravity = G + state.liftAccel; 
+        
+        // Convert to pixels for internal animation (1 meter approx 50px for visual scale inside)
+        const METER_TO_PX = 100; 
+        
+        // Apply "Gravity" to person's local velocity
+        // If effectiveGravity is positive (normal), velocity decreases (goes towards floor)
+        // If effectiveGravity is negative (super drop), velocity increases (goes towards ceiling)
+        state.personVelY -= effectiveGravity * METER_TO_PX * dt;
+
+        // Apply Drag/Damping (air resistance inside car)
+        state.personVelY *= 0.95;
+
+        // Update Position
+        state.personY += state.personVelY * dt;
+
+        // COLLISIONS (Floor & Ceiling)
+        const maxHeadroom = LIFT_HEIGHT_INTERNAL - PERSON_HEIGHT - FLOOR_PADDING - CEILING_PADDING;
+
+        // Floor Collision
+        if (state.personY <= 0) {
+            state.personY = 0;
+            // Damping bounce
+            state.personVelY = -state.personVelY * 0.2; 
+            if (Math.abs(state.personVelY) < 10) state.personVelY = 0;
+        }
+
+        // Ceiling Collision
+        if (state.personY >= maxHeadroom) {
+            state.personY = maxHeadroom;
+            // Hard bounce off ceiling
+            state.personVelY = -state.personVelY * 0.5;
+        }
+
+        // 5. SCALE READING
+        // Reading = Normal Force. 
+        // If person is touching floor (state.personY approx 0), F = m(g + a)
+        // If person is flying, F = 0
+        let reading = 0;
+        
+        if (state.personY < 5) { // Tolerance for "touching"
+            // Ensure negative reading isn't possible (scales don't read negative force usually)
+            // But we want to show the force required to keep them on the floor.
+            let force = state.mass * (G + state.liftAccel);
+            if (force < 0) force = 0; // Floating
+            reading = force;
+        } else {
+            reading = 0; // In the air
+        }
+
+        // 6. RENDER
+        render(reading);
+
+        requestAnimationFrame(updatePhysics);
+    }
+
+    function render(forceInNewtons) {
+        // Left Panel Updates
+        elInputReadout.innerText = state.liftAccel.toFixed(1);
+        if(state.autopilot && state.liftHeight > 600) {
+            elInputReadout.style.color = 'var(--accent)'; // Warn that computer is taking over
+        } else {
+            elInputReadout.style.color = 'white';
+        }
+        
+        // Mini Map
+        const pct = (state.liftHeight / BURJ_HEIGHT) * 100;
+        elTowerCar.style.bottom = pct + "%";
+        elHeightMini.innerText = state.liftHeight.toFixed(0) + " m";
+
+        // Right Panel Updates
+        elAltitude.innerText = state.liftHeight.toFixed(1).padStart(5, '0');
+        elVelocity.innerText = state.liftVel.toFixed(1);
+
+        // Person Animation
+        // Lift floor is bottom: 20px. 
+        // personY is added to that.
+        elPerson.style.bottom = (20 + state.personY) + "px";
+
+        // Scale Text
+        let displayVal = 0;
+        if (state.unit === 'kg') {
+            displayVal = forceInNewtons / G;
+            elScaleUnit.innerText = "kg";
+        } else {
+            displayVal = forceInNewtons;
+            elScaleUnit.innerText = "NEWTONS";
+        }
+
+        // Visual jitter if off scale or crashing
+        if (state.personY > 5) {
+            elScaleReadout.style.color = '#555'; // dimmed if 0
+        } else {
+            elScaleReadout.style.color = 'var(--lcd-color)';
+        }
+        
+        elScaleReadout.innerText = displayVal.toFixed(1);
+    }
+
+    // --- CONTROLS ---
+    function toggleAutopilot() {
+        state.autopilot = !state.autopilot;
+        if(state.autopilot) {
+            elAutopilotBtn.classList.add('active');
+            elAutopilotBtn.innerText = "AUTOPILOT: ON";
+        } else {
+            elAutopilotBtn.classList.remove('active');
+            elAutopilotBtn.innerText = "AUTOPILOT: OFF";
+        }
+    }
+
+    // Initialize
+    requestAnimationFrame(updatePhysics);
+
+</script>
+</body>
+</html>

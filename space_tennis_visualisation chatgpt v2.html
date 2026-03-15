@@ -1,0 +1,1420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Space Tennis Environment Visualiser</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --line: #334155;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-2: #a78bfa;
+      --good: #22c55e;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #020617 0%, #111827 100%);
+      color: var(--text);
+    }
+
+    .wrap {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.86rem;
+      line-height: 1.15;
+    }
+
+    .sub {
+      color: var(--muted);
+      margin-bottom: 18px;
+      max-width: 1050px;
+      line-height: 1.45;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(15, 23, 42, 0.72);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      border-radius: 18px;
+      padding: 14px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(12px);
+    }
+
+    .toolbar-left, .toolbar-right {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .toolbar-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    button, select, input[type="range"] {
+      accent-color: var(--accent);
+    }
+
+    button, select {
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 12px;
+      padding: 10px 12px;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    button:hover, select:hover {
+      border-color: rgba(56, 189, 248, 0.5);
+    }
+
+    button.active {
+      background: rgba(56, 189, 248, 0.18);
+      border-color: rgba(56, 189, 248, 0.7);
+    }
+
+    .pill {
+      padding: 9px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      color: var(--muted);
+      font-size: 0.92rem;
+      background: rgba(30, 41, 59, 0.5);
+      white-space: nowrap;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(340px, 1fr);
+      gap: 16px;
+    }
+
+    .main {
+      display: grid;
+      gap: 16px;
+    }
+
+    .panel {
+      background: rgba(17, 24, 39, 0.82);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      border-radius: 22px;
+      padding: 12px 12px 8px;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(2, 6, 23, 0.38);
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin: 0 6px 8px;
+    }
+
+    .panel-title {
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    .panel-sub {
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    canvas {
+      width: 100%;
+      height: 312px;
+      display: block;
+      background: radial-gradient(circle at top, rgba(30, 41, 59, 0.95), rgba(2, 6, 23, 0.98));
+      border-radius: 18px;
+    }
+
+    .side {
+      background: rgba(17, 24, 39, 0.82);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      border-radius: 22px;
+      padding: 16px;
+      align-self: start;
+      position: sticky;
+      top: 16px;
+      box-shadow: 0 12px 40px rgba(2, 6, 23, 0.38);
+    }
+
+    .section-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin: 2px 0 8px;
+    }
+
+    .section-copy {
+      color: var(--muted);
+      line-height: 1.4;
+      font-size: 0.93rem;
+      margin-bottom: 14px;
+    }
+
+    .controls {
+      display: grid;
+      gap: 12px;
+    }
+
+    .control {
+      background: rgba(30, 41, 59, 0.52);
+      border: 1px solid rgba(148, 163, 184, 0.12);
+      border-radius: 16px;
+      padding: 12px;
+    }
+
+    .control-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.93rem;
+      margin-bottom: 8px;
+      align-items: baseline;
+    }
+
+    .control-label {
+      font-weight: 600;
+    }
+
+    .value {
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      text-align: right;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      margin: 0;
+    }
+
+    .range-labels {
+      margin-top: 7px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .stat {
+      background: rgba(30, 41, 59, 0.52);
+      border: 1px solid rgba(148, 163, 184, 0.12);
+      border-radius: 16px;
+      padding: 12px;
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-size: 1.03rem;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 0.89rem;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      display: inline-block;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .footer-note {
+      color: var(--muted);
+      margin-top: 14px;
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+
+    .side-divider {
+      height: 1px;
+      background: rgba(148, 163, 184, 0.14);
+      margin: 16px 0;
+    }
+
+    .mini-note {
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.45;
+      margin-top: 10px;
+    }
+
+    .preset-select {
+      min-width: 180px;
+    }
+
+    @media (max-width: 1100px) {
+      .layout { grid-template-columns: 1fr; }
+      .side { position: static; }
+    }
+
+    @media (max-width: 680px) {
+      .stat-grid { grid-template-columns: 1fr; }
+      canvas { height: 280px; }
+      h1 { font-size: 1.54rem; }
+      .toolbar { justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Space Environment Tennis Visualiser</h1>
+    <div class="sub">
+      Compare Earth against a custom environment for four preset tennis shots in a simplified 2D model. The flight includes gravity, drag, Magnus force from spin, and bounce behaviour from ball and surface restitution. The receiver stays fixed where you place them so the key readout is simply the height at which the ball passes.
+    </div>
+
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <div class="toolbar-group" id="shotButtons"></div>
+        <div class="toolbar-group">
+          <button id="playPauseBtn">Pause</button>
+          <button id="resetBtn">Reset</button>
+          <button id="copyEarthBtn">Copy Earth to custom</button>
+        </div>
+      </div>
+      <div class="toolbar-right">
+        <div class="toolbar-group">
+          <label for="envPreset">Quick preset</label>
+          <select id="envPreset" class="preset-select">
+            <option value="custom">Custom</option>
+            <option value="earth">Earth baseline</option>
+            <option value="mars">Mars dome</option>
+            <option value="moon">Moon habitat</option>
+            <option value="orbital">Orbital sports hall</option>
+          </select>
+        </div>
+        <div class="pill" id="statusPill">Running comparison</div>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="main">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">Earth reference</div>
+              <div class="panel-sub" id="earthSummary"></div>
+            </div>
+          </div>
+          <canvas id="earthCanvas"></canvas>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">Custom environment</div>
+              <div class="panel-sub" id="customSummary"></div>
+            </div>
+          </div>
+          <canvas id="customCanvas"></canvas>
+        </section>
+      </div>
+
+      <aside class="side">
+        <div class="section-title">Selected shot</div>
+        <div class="section-copy">
+          These controls apply to both panels so you can compare the same intended shot on Earth and in the custom environment.
+        </div>
+        <div class="controls" id="shotControls"></div>
+
+        <div class="side-divider"></div>
+
+        <div class="section-title">Custom environment controls</div>
+        <div class="section-copy">
+          Adjust the lower panel to see how you would need to tune the game off-world. Court length is handled as a multiplier, but the display also shows the resulting metres.
+        </div>
+        <div class="controls" id="envControls"></div>
+
+        <div class="stat-grid">
+          <div class="stat">
+            <div class="stat-label">Earth pass height</div>
+            <div class="stat-value" id="earthPassStat">–</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Custom pass height</div>
+            <div class="stat-value" id="customPassStat">–</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Earth outcome</div>
+            <div class="stat-value" id="earthOutcomeStat">–</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Custom outcome</div>
+            <div class="stat-value" id="customOutcomeStat">–</div>
+          </div>
+        </div>
+
+        <div class="legend">
+          <span class="legend-item"><span class="swatch" style="background:#38bdf8"></span>Flight path</span>
+          <span class="legend-item"><span class="swatch" style="background:#f8fafc"></span>Current ball</span>
+          <span class="legend-item"><span class="swatch" style="background:#22c55e"></span>Bounce marker</span>
+          <span class="legend-item"><span class="swatch" style="background:#f59e0b"></span>Receiver strike zone</span>
+        </div>
+
+        <div class="footer-note">
+          Positive spin is topspin, so Magnus pushes downward; negative spin is slice, so Magnus lifts. Pressure changes air density and therefore both drag and Magnus. The two panels share one horizontal scale, so whichever court is shorter visibly shrinks.
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const EARTH_PRESSURE = 101.3;
+    const EARTH_COURT_LENGTH = 23.77;
+    const EARTH_SERVICE_OFFSET = 6.40;
+    const STRIKE_ZONE = { min: 0.45, max: 2.45, preferred: 1.05 };
+    const RECEIVER_POSITIONS = ["Service line", "Baseline", "1.5× court length"];
+    const BALL_BASE = {
+      mass: 0.057,
+      radius: 0.033,
+      cd: 0.56,
+    };
+
+    function makeBall(radius, mass, cd) {
+      return { mass, radius, cd, area: Math.PI * radius * radius };
+    }
+
+    const SHOTS = {
+      serve: {
+        label: "Serve",
+        color: "#38bdf8",
+        launchX: 0.55,
+        launchY: 2.80,
+        speed: 26.5,
+        angleDeg: -0.6,
+        spinRpm: 100,
+        type: "serve",
+        note: "Overhead serve calibrated to land just inside the service line on Earth.",
+      },
+      flat: {
+        label: "Flat FH/BH",
+        color: "#34d399",
+        launchX: 0.95,
+        launchY: 1.05,
+        speed: 26.0,
+        angleDeg: 7.2,
+        spinRpm: 500,
+        type: "groundstroke",
+        note: "Driven baseline ball with modest spin and low-to-moderate net clearance.",
+      },
+      topspin: {
+        label: "Topspin",
+        color: "#a78bfa",
+        launchX: 0.95,
+        launchY: 1.08,
+        speed: 31.0,
+        angleDeg: 7.8,
+        spinRpm: 3000,
+        type: "groundstroke",
+        note: "Heavy topspin drive that still lands in on Earth by dipping after the net.",
+      },
+      slice: {
+        label: "Slice",
+        color: "#f59e0b",
+        launchX: 0.90,
+        launchY: 1.00,
+        speed: 22.0,
+        angleDeg: 7.0,
+        spinRpm: -1600,
+        type: "groundstroke",
+        note: "Backspin shot set to stay in on Earth while keeping a lower passing height.",
+      },
+    };
+
+    const EARTH_ENV = {
+      name: "Earth",
+      g: 9.81,
+      pressure: 101.3,
+      courtMultiplier: 1,
+      ballCor: 0.88,
+      surfaceCor: 0.84,
+      surfaceFriction: 0.28,
+      spinRetention: 0.83,
+      receiverPositionMode: 1,
+      netHeight: 0.914,
+      ballMassMultiplier: 1,
+      ballRadiusMultiplier: 1,
+    };
+
+    const PRESETS = {
+      earth: { ...EARTH_ENV },
+      mars: {
+        ...EARTH_ENV,
+        name: "Mars dome",
+        g: 3.71,
+        pressure: 18,
+        courtMultiplier: 1.30,
+        ballCor: 0.90,
+        surfaceCor: 0.86,
+        surfaceFriction: 0.24,
+        spinRetention: 0.86,
+        receiverPositionMode: 2,
+      },
+      moon: {
+        ...EARTH_ENV,
+        name: "Moon habitat",
+        g: 1.62,
+        pressure: 30,
+        courtMultiplier: 1.55,
+        ballCor: 0.92,
+        surfaceCor: 0.88,
+        surfaceFriction: 0.20,
+        spinRetention: 0.88,
+        receiverPositionMode: 2,
+      },
+      orbital: {
+        ...EARTH_ENV,
+        name: "Orbital hall",
+        g: 0.60,
+        pressure: 75,
+        courtMultiplier: 1.90,
+        ballCor: 0.86,
+        surfaceCor: 0.82,
+        surfaceFriction: 0.18,
+        spinRetention: 0.90,
+        receiverPositionMode: 2,
+      },
+    };
+
+    const shotControlConfig = [
+      {
+        key: "speedMultiplier",
+        label: "Shot speed multiplier",
+        min: 0.55,
+        max: 1.55,
+        step: 0.01,
+        format: (value, state) => {
+          const baseSpeed = SHOTS[state.shotKey].speed;
+          const actual = baseSpeed * value;
+          return `${value.toFixed(2)}× · ${actual.toFixed(1)} m/s · ${(actual * 2.23694).toFixed(1)} mph`;
+        },
+      },
+      {
+        key: "angleOffset",
+        label: "Launch angle adjustment",
+        min: -10,
+        max: 12,
+        step: 0.1,
+        format: (value, state) => {
+          const actual = SHOTS[state.shotKey].angleDeg + value;
+          return `${value >= 0 ? "+" : ""}${value.toFixed(1)}° · actual ${actual.toFixed(1)}°`;
+        },
+      },
+      {
+        key: "spinMultiplier",
+        label: "Spin multiplier",
+        min: 0.35,
+        max: 1.80,
+        step: 0.01,
+        format: (value, state) => {
+          const actual = SHOTS[state.shotKey].spinRpm * value;
+          return `${value.toFixed(2)}× · ${Math.round(actual)} rpm`;
+        },
+      },
+    ];
+
+    const envControlConfig = [
+      {
+        key: "g",
+        label: "Gravity",
+        min: 0.5,
+        max: 25,
+        step: 0.01,
+        format: value => `${value.toFixed(2)} m/s²`,
+      },
+      {
+        key: "pressure",
+        label: "Pressure",
+        min: 0,
+        max: 130,
+        step: 0.1,
+        format: value => `${value.toFixed(1)} kPa · ρ ${densityFromPressure(value).toFixed(3)} kg/m³`,
+      },
+      {
+        key: "courtMultiplier",
+        label: "Court length multiplier",
+        min: 0.5,
+        max: 2.5,
+        step: 0.01,
+        format: value => `${value.toFixed(2)}× · ${(EARTH_COURT_LENGTH * value).toFixed(2)} m`,
+      },
+      {
+        key: "ballCor",
+        label: "Ball COR",
+        min: 0.5,
+        max: 0.98,
+        step: 0.001,
+        format: value => value.toFixed(3),
+      },
+      {
+        key: "surfaceCor",
+        label: "Surface COR",
+        min: 0.5,
+        max: 0.98,
+        step: 0.001,
+        format: value => value.toFixed(3),
+      },
+      {
+        key: "surfaceFriction",
+        label: "Surface friction",
+        min: 0.05,
+        max: 0.85,
+        step: 0.001,
+        format: value => value.toFixed(3),
+      },
+      {
+        key: "spinRetention",
+        label: "Spin retention on bounce",
+        min: 0.2,
+        max: 1.0,
+        step: 0.01,
+        format: value => value.toFixed(2),
+      },
+      {
+        key: "receiverPositionMode",
+        label: "Receiver position",
+        type: "discrete",
+        min: 0,
+        max: 2,
+        step: 1,
+        labels: RECEIVER_POSITIONS,
+        format: value => RECEIVER_POSITIONS[Math.round(value)],
+      },
+    ];
+
+    const state = {
+      shotKey: "serve",
+      shotTweaks: {
+        speedMultiplier: 1,
+        angleOffset: 0,
+        spinMultiplier: 1,
+      },
+      customEnvRaw: { ...PRESETS.mars },
+      sims: null,
+      scene: null,
+      playing: true,
+      time: 0,
+      lastTs: 0,
+      uiRefs: {
+        shot: {},
+        env: {},
+      },
+    };
+
+    const shotButtonsEl = document.getElementById("shotButtons");
+    const shotControlsEl = document.getElementById("shotControls");
+    const envControlsEl = document.getElementById("envControls");
+    const earthCanvas = document.getElementById("earthCanvas");
+    const customCanvas = document.getElementById("customCanvas");
+    const earthSummaryEl = document.getElementById("earthSummary");
+    const customSummaryEl = document.getElementById("customSummary");
+    const earthPassStat = document.getElementById("earthPassStat");
+    const customPassStat = document.getElementById("customPassStat");
+    const earthOutcomeStat = document.getElementById("earthOutcomeStat");
+    const customOutcomeStat = document.getElementById("customOutcomeStat");
+    const statusPill = document.getElementById("statusPill");
+    const playPauseBtn = document.getElementById("playPauseBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const copyEarthBtn = document.getElementById("copyEarthBtn");
+    const envPresetEl = document.getElementById("envPreset");
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function densityFromPressure(pressureKpa) {
+      return 1.225 * (pressureKpa / EARTH_PRESSURE);
+    }
+
+    function effectiveCor(env) {
+      return clamp(env.ballCor * env.surfaceCor, 0.25, 0.98);
+    }
+
+    function spinToRadPerSec(rpm) {
+      return rpm * 2 * Math.PI / 60;
+    }
+
+    function lineIntersectionAtX(a, b, xTarget) {
+      if ((a.x <= xTarget && b.x >= xTarget) || (a.x >= xTarget && b.x <= xTarget)) {
+        const span = b.x - a.x;
+        const t = Math.abs(span) < 1e-9 ? 0 : (xTarget - a.x) / span;
+        if (t >= 0 && t <= 1) {
+          return {
+            t,
+            x: xTarget,
+            y: lerp(a.y, b.y, t),
+            vy: lerp(a.vy, b.vy, t),
+            vx: lerp(a.vx, b.vx, t),
+            time: lerp(a.time, b.time, t),
+          };
+        }
+      }
+      return null;
+    }
+
+    function interpolateStateAtTime(states, t) {
+      if (!states || states.length === 0) return null;
+      if (t <= 0) return states[0];
+      const last = states[states.length - 1];
+      if (t >= last.time) return last;
+
+      let lo = 0;
+      let hi = states.length - 1;
+      while (lo <= hi) {
+        const mid = Math.floor((lo + hi) / 2);
+        if (states[mid].time < t) lo = mid + 1;
+        else hi = mid - 1;
+      }
+
+      const b = states[lo];
+      const a = states[Math.max(0, lo - 1)];
+      const span = b.time - a.time || 1;
+      const u = (t - a.time) / span;
+      return {
+        x: lerp(a.x, b.x, u),
+        y: lerp(a.y, b.y, u),
+        vx: lerp(a.vx, b.vx, u),
+        vy: lerp(a.vy, b.vy, u),
+        spin: lerp(a.spin, b.spin, u),
+        time: t,
+        bounceCount: u < 0.5 ? a.bounceCount : b.bounceCount,
+      };
+    }
+
+    function deriveShotForEnv(env) {
+      const base = SHOTS[state.shotKey];
+      return {
+        ...base,
+        launchX: base.launchX * env.courtMultiplier,
+        launchY: base.launchY,
+        speed: base.speed * state.shotTweaks.speedMultiplier,
+        angleDeg: base.angleDeg + state.shotTweaks.angleOffset,
+        spinRpm: base.spinRpm * state.shotTweaks.spinMultiplier,
+      };
+    }
+
+    function deriveEnv(raw) {
+      const courtMultiplier = raw.courtMultiplier;
+      const courtLength = EARTH_COURT_LENGTH * courtMultiplier;
+      const netX = courtLength / 2;
+      const serviceLineOffset = EARTH_SERVICE_OFFSET * courtMultiplier;
+      let receiverX = courtLength;
+      if (raw.receiverPositionMode === 0) receiverX = netX + serviceLineOffset;
+      if (raw.receiverPositionMode === 1) receiverX = courtLength;
+      if (raw.receiverPositionMode === 2) receiverX = courtLength * 1.5;
+      const ball = makeBall(
+        BALL_BASE.radius * raw.ballRadiusMultiplier,
+        BALL_BASE.mass * raw.ballMassMultiplier,
+        BALL_BASE.cd
+      );
+      return {
+        ...raw,
+        courtLength,
+        netX,
+        serviceLineOffset,
+        serviceLineLeft: netX - serviceLineOffset,
+        serviceLineRight: netX + serviceLineOffset,
+        receiverX,
+        density: densityFromPressure(raw.pressure),
+        ball,
+      };
+    }
+
+    function simulate(env, shot) {
+      const dt = 1 / 240;
+      const maxTime = 10;
+      const rho = env.density;
+      let current = {
+        time: 0,
+        x: shot.launchX,
+        y: shot.launchY,
+        vx: shot.speed * Math.cos(shot.angleDeg * Math.PI / 180),
+        vy: shot.speed * Math.sin(shot.angleDeg * Math.PI / 180),
+        spin: spinToRadPerSec(shot.spinRpm),
+        bounceCount: 0,
+      };
+
+      const states = [{ ...current }];
+      const bounces = [];
+      let outcome = "In flight";
+      let netClearance = null;
+      let netContact = false;
+
+      for (let i = 0; i < maxTime / dt; i++) {
+        const v = Math.hypot(current.vx, current.vy);
+        const safeV = Math.max(v, 0.01);
+        const ball = env.ball;
+
+        const dragMag = 0.5 * rho * ball.cd * ball.area * safeV * safeV / ball.mass;
+        const dragAx = -dragMag * (current.vx / safeV);
+        const dragAy = -dragMag * (current.vy / safeV);
+
+        const spinParam = clamp((Math.abs(current.spin) * ball.radius) / safeV, 0, 1.4);
+        const cl = clamp(0.62 * spinParam, 0, 0.72);
+        const magnusMag = 0.5 * rho * cl * ball.area * safeV * safeV / ball.mass;
+        const liftDirX = current.vy / safeV;
+        const liftDirY = -current.vx / safeV;
+        const spinSign = Math.sign(current.spin);
+        const magnusAx = magnusMag * liftDirX * spinSign;
+        const magnusAy = magnusMag * liftDirY * spinSign;
+
+        const ax = dragAx + magnusAx;
+        const ay = dragAy + magnusAy - env.g;
+
+        const prev = { ...current };
+        current.vx += ax * dt;
+        current.vy += ay * dt;
+        current.x += current.vx * dt;
+        current.y += current.vy * dt;
+        current.time += dt;
+
+        const netCross = lineIntersectionAtX(prev, current, env.netX);
+        if (netCross && netClearance === null) {
+          netClearance = netCross.y - env.netHeight;
+          if (netCross.y <= env.netHeight + env.ball.radius) {
+            netContact = true;
+            outcome = "Net";
+            current = { ...netCross, spin: current.spin, bounceCount: prev.bounceCount };
+            states.push({ ...current });
+            break;
+          }
+        }
+
+        if (current.y <= env.ball.radius && current.vy < 0) {
+          const groundT = clamp((env.ball.radius - prev.y) / (current.y - prev.y || -1e-6), 0, 1);
+          const bounceX = lerp(prev.x, current.x, groundT);
+          const bounceTime = lerp(prev.time, current.time, groundT);
+          const preBounceVx = lerp(prev.vx, current.vx, groundT);
+          const preBounceVy = lerp(prev.vy, current.vy, groundT);
+          const preBounceSpin = lerp(prev.spin, current.spin, groundT);
+          const cor = effectiveCor(env);
+          const tangentRel = preBounceVx - preBounceSpin * env.ball.radius;
+          const frictionImpulse = env.surfaceFriction * tangentRel;
+          const newVx = preBounceVx - frictionImpulse;
+          const newSpin = (preBounceSpin + frictionImpulse / env.ball.radius) * env.spinRetention;
+
+          current = {
+            time: bounceTime,
+            x: bounceX,
+            y: env.ball.radius,
+            vx: newVx,
+            vy: Math.abs(preBounceVy) * cor,
+            spin: newSpin,
+            bounceCount: prev.bounceCount + 1,
+          };
+          bounces.push({ x: bounceX, y: env.ball.radius, time: bounceTime, count: current.bounceCount });
+        }
+
+        states.push({ ...current });
+
+        if (current.x > Math.max(env.receiverX + 5, env.courtLength + 8) || current.y < -2 || current.bounceCount >= 2) {
+          break;
+        }
+      }
+
+      const firstBounce = bounces[0] || null;
+      if (!netContact) {
+        if (!firstBounce) {
+          outcome = "Long";
+        } else if (shot.type === "serve") {
+          if (firstBounce.x > env.netX && firstBounce.x < env.serviceLineRight) outcome = "Service in";
+          else if (firstBounce.x <= env.netX) outcome = "Own side";
+          else outcome = "Service long";
+        } else {
+          if (firstBounce.x > env.netX && firstBounce.x <= env.courtLength) outcome = "In";
+          else if (firstBounce.x <= env.netX) outcome = "Own side";
+          else outcome = "Long";
+        }
+      }
+
+      let passState = null;
+      for (let i = 1; i < states.length; i++) {
+        const hit = lineIntersectionAtX(states[i - 1], states[i], env.receiverX);
+        if (hit && hit.time > 0) {
+          passState = hit;
+          break;
+        }
+      }
+
+      return {
+        env,
+        shot,
+        states,
+        bounces,
+        duration: states[states.length - 1]?.time || 0,
+        outcome,
+        netClearance,
+        firstBounce,
+        passState,
+        inStrikeZone: !!passState && passState.y >= STRIKE_ZONE.min && passState.y <= STRIKE_ZONE.max,
+      };
+    }
+
+    function buildShotButtons() {
+      shotButtonsEl.innerHTML = "";
+      Object.entries(SHOTS).forEach(([key, shot]) => {
+        const btn = document.createElement("button");
+        btn.textContent = shot.label;
+        btn.className = key === state.shotKey ? "active" : "";
+        btn.addEventListener("click", () => {
+          state.shotKey = key;
+          Array.from(shotButtonsEl.children).forEach(child => child.classList.remove("active"));
+          btn.classList.add("active");
+          syncControls();
+          recompute();
+        });
+        shotButtonsEl.appendChild(btn);
+      });
+    }
+
+    function getControlStateObject(groupKey) {
+      return groupKey === "env" ? state.customEnvRaw : state.shotTweaks;
+    }
+
+    function buildControls(targetEl, config, groupKey) {
+      targetEl.innerHTML = "";
+      config.forEach(cfg => {
+        const backingObject = getControlStateObject(groupKey);
+        const wrap = document.createElement("div");
+        wrap.className = "control";
+
+        const top = document.createElement("div");
+        top.className = "control-top";
+
+        const label = document.createElement("div");
+        label.className = "control-label";
+        label.textContent = cfg.label;
+
+        const value = document.createElement("div");
+        value.className = "value";
+        value.textContent = cfg.format(backingObject[cfg.key], state);
+
+        const input = document.createElement("input");
+        input.type = "range";
+        input.min = cfg.min;
+        input.max = cfg.max;
+        input.step = cfg.step;
+        input.value = backingObject[cfg.key];
+        input.addEventListener("input", () => {
+          const liveObject = getControlStateObject(groupKey);
+          liveObject[cfg.key] = Number(input.value);
+          value.textContent = cfg.format(liveObject[cfg.key], state);
+          if (groupKey === "env") envPresetEl.value = "custom";
+          recompute();
+        });
+
+        top.appendChild(label);
+        top.appendChild(value);
+        wrap.appendChild(top);
+        wrap.appendChild(input);
+
+        if (cfg.labels) {
+          const labels = document.createElement("div");
+          labels.className = "range-labels";
+          cfg.labels.forEach(text => {
+            const span = document.createElement("span");
+            span.textContent = text;
+            labels.appendChild(span);
+          });
+          wrap.appendChild(labels);
+        }
+
+        targetEl.appendChild(wrap);
+        state.uiRefs[groupKey][cfg.key] = { input, value };
+      });
+    }
+
+    function syncControls() {
+      shotControlConfig.forEach(cfg => {
+        const ref = state.uiRefs.shot[cfg.key];
+        ref.input.value = state.shotTweaks[cfg.key];
+        ref.value.textContent = cfg.format(state.shotTweaks[cfg.key], state);
+      });
+      envControlConfig.forEach(cfg => {
+        const ref = state.uiRefs.env[cfg.key];
+        ref.input.value = state.customEnvRaw[cfg.key];
+        ref.value.textContent = cfg.format(state.customEnvRaw[cfg.key], state);
+      });
+    }
+
+    function formatPass(sim) {
+      if (!sim.passState) return "Does not reach receiver";
+      const zoneText = sim.inStrikeZone ? "in zone" : (sim.passState.y < STRIKE_ZONE.min ? "too low" : "too high");
+      return `${sim.passState.y.toFixed(2)} m · ${zoneText}`;
+    }
+
+    function formatOutcome(sim) {
+      const clearance = sim.netClearance == null ? "–" : `${sim.netClearance.toFixed(2)} m`;
+      return `${sim.outcome} · net ${clearance}`;
+    }
+
+    function describeReceiver(env) {
+      const label = RECEIVER_POSITIONS[env.receiverPositionMode];
+      return `${label} (${env.receiverX.toFixed(2)} m)`;
+    }
+
+    function computeSceneMetrics(earthSim, customSim) {
+      const maxXBall = Math.max(
+        ...earthSim.states.map(s => s.x),
+        ...customSim.states.map(s => s.x),
+        earthSim.env.receiverX,
+        customSim.env.receiverX,
+        earthSim.env.courtLength,
+        customSim.env.courtLength
+      );
+      const maxYBall = Math.max(
+        ...earthSim.states.map(s => s.y),
+        ...customSim.states.map(s => s.y),
+        STRIKE_ZONE.max
+      );
+      return {
+        maxX: Math.max(16, maxXBall + 1.8),
+        maxY: clamp(maxYBall * 1.18, 4.5, 24),
+      };
+    }
+
+    function recompute() {
+      const earthEnv = deriveEnv(EARTH_ENV);
+      const customEnv = deriveEnv(state.customEnvRaw);
+      const earthSim = simulate(earthEnv, deriveShotForEnv(earthEnv));
+      const customSim = simulate(customEnv, deriveShotForEnv(customEnv));
+      state.sims = { earth: earthSim, custom: customSim };
+      state.scene = computeSceneMetrics(earthSim, customSim);
+      state.time = 0;
+      updateText();
+      drawAll();
+    }
+
+    function updateText() {
+      const earthSim = state.sims.earth;
+      const customSim = state.sims.custom;
+      const shot = deriveShotForEnv(earthSim.env);
+      earthSummaryEl.textContent = `${SHOTS[state.shotKey].note} Court ${earthSim.env.courtLength.toFixed(2)} m, g ${earthSim.env.g.toFixed(2)} m/s², ρ ${earthSim.env.density.toFixed(3)} kg/m³, receiver ${describeReceiver(earthSim.env)}.`;
+      customSummaryEl.textContent = `${customSim.env.name}: court ${customSim.env.courtLength.toFixed(2)} m (${customSim.env.courtMultiplier.toFixed(2)}×), g ${customSim.env.g.toFixed(2)} m/s², pressure ${customSim.env.pressure.toFixed(1)} kPa, ρ ${customSim.env.density.toFixed(3)} kg/m³, receiver ${describeReceiver(customSim.env)}.`;
+      earthPassStat.textContent = formatPass(earthSim);
+      customPassStat.textContent = formatPass(customSim);
+      earthOutcomeStat.textContent = formatOutcome(earthSim);
+      customOutcomeStat.textContent = formatOutcome(customSim);
+      statusPill.textContent = `${SHOTS[state.shotKey].label} · ${shot.speed.toFixed(1)} m/s · ${(shot.speed * 2.23694).toFixed(1)} mph · ${shot.angleDeg.toFixed(1)}°`;
+    }
+
+    function worldToScreen(canvas, x, y, scene) {
+      const marginLeft = 32;
+      const marginRight = 18;
+      const marginTop = 18;
+      const marginBottom = 34;
+      const w = canvas.width;
+      const h = canvas.height;
+      const usableW = w - marginLeft - marginRight;
+      const usableH = h - marginTop - marginBottom;
+      return {
+        x: marginLeft + (x / scene.maxX) * usableW,
+        y: h - marginBottom - (y / scene.maxY) * usableH,
+      };
+    }
+
+    function drawCourt(ctx, canvas, sim, scene, tNow) {
+      const env = sim.env;
+      const groundLeft = worldToScreen(canvas, 0, 0, scene).x;
+      const groundRight = worldToScreen(canvas, scene.maxX, 0, scene).x;
+      const groundY = worldToScreen(canvas, 0, 0, scene).y;
+      const baselineL = worldToScreen(canvas, 0, 0, scene).x;
+      const baselineR = worldToScreen(canvas, env.courtLength, 0, scene).x;
+      const serviceL = worldToScreen(canvas, env.serviceLineLeft, 0, scene).x;
+      const serviceR = worldToScreen(canvas, env.serviceLineRight, 0, scene).x;
+      const netX = worldToScreen(canvas, env.netX, 0, scene).x;
+      const netTopY = worldToScreen(canvas, env.netX, env.netHeight, scene).y;
+      const receiverX = worldToScreen(canvas, env.receiverX, 0, scene).x;
+
+      const background = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      background.addColorStop(0, "rgba(15, 23, 42, 0.15)");
+      background.addColorStop(1, "rgba(2, 6, 23, 0.88)");
+      ctx.fillStyle = background;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "rgba(17, 24, 39, 0.85)";
+      ctx.fillRect(groundLeft, groundY - 2, groundRight - groundLeft, canvas.height - groundY + 2);
+
+      ctx.fillStyle = "rgba(71, 85, 105, 0.22)";
+      ctx.fillRect(baselineL, groundY - 2, baselineR - baselineL, canvas.height - groundY + 2);
+
+      if (receiverX > baselineR + 2) {
+        ctx.fillStyle = "rgba(148, 163, 184, 0.06)";
+        ctx.fillRect(baselineR, groundY - 2, receiverX - baselineR, canvas.height - groundY + 2);
+      }
+
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.30)";
+      ctx.lineWidth = 1;
+      for (let i = 1; i <= 4; i++) {
+        const gy = i * (scene.maxY / 4);
+        const y = worldToScreen(canvas, 0, gy, scene).y;
+        ctx.beginPath();
+        ctx.moveTo(14, y);
+        ctx.lineTo(canvas.width - 12, y);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(148, 163, 184, 0.82)";
+        ctx.font = "12px Inter, system-ui, sans-serif";
+        ctx.fillText(`${gy.toFixed(1)} m`, 14, y - 4);
+      }
+
+      ctx.strokeStyle = "rgba(248, 250, 252, 0.94)";
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(baselineL, groundY);
+      ctx.lineTo(baselineR, groundY);
+      ctx.moveTo(baselineL, groundY);
+      ctx.lineTo(baselineL, groundY - 12);
+      ctx.moveTo(baselineR, groundY);
+      ctx.lineTo(baselineR, groundY - 12);
+      ctx.moveTo(serviceL, groundY);
+      ctx.lineTo(serviceL, groundY - 12);
+      ctx.moveTo(serviceR, groundY);
+      ctx.lineTo(serviceR, groundY - 12);
+      ctx.stroke();
+
+      const wobble = Math.sin(tNow * 5 + env.netX * 0.35) * 1.4;
+      ctx.fillStyle = "rgba(148, 163, 184, 0.20)";
+      ctx.fillRect(netX - 6 + wobble * 0.15, netTopY, 12, groundY - netTopY);
+      ctx.strokeStyle = "rgba(248, 250, 252, 0.98)";
+      ctx.lineWidth = 3.2;
+      ctx.beginPath();
+      ctx.moveTo(netX - 7, netTopY);
+      ctx.lineTo(netX + 7, netTopY);
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(226, 232, 240, 0.75)";
+      ctx.lineWidth = 1;
+      for (let y = netTopY + 6; y < groundY; y += 7) {
+        ctx.beginPath();
+        ctx.moveTo(netX - 6, y + wobble * 0.2);
+        ctx.lineTo(netX + 6, y - wobble * 0.2);
+        ctx.stroke();
+      }
+      for (let x = -4; x <= 4; x += 4) {
+        ctx.beginPath();
+        ctx.moveTo(netX + x + wobble * 0.25, netTopY);
+        ctx.lineTo(netX + x - wobble * 0.25, groundY);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = "rgba(226, 232, 240, 0.96)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(netX - 6, groundY);
+      ctx.lineTo(netX - 6, netTopY - 6);
+      ctx.moveTo(netX + 6, groundY);
+      ctx.lineTo(netX + 6, netTopY - 6);
+      ctx.stroke();
+
+      ctx.fillStyle = "rgba(226, 232, 240, 0.92)";
+      ctx.font = "12px Inter, system-ui, sans-serif";
+      ctx.fillText("baseline", baselineL + 4, groundY + 18);
+      ctx.fillText("service", serviceL + 4, groundY + 18);
+      ctx.fillText("net", netX + 10, netTopY - 8);
+      ctx.fillText("service", serviceR - 44, groundY + 18);
+      ctx.fillText("baseline", baselineR - 56, groundY + 18);
+      ctx.fillText(`court ${env.courtLength.toFixed(2)} m`, Math.max(groundLeft + 6, (baselineL + baselineR) / 2 - 42), groundY + 34);
+      if (env.receiverX > env.courtLength) {
+        ctx.fillText("receiver zone", baselineR + 8, groundY + 18);
+      }
+    }
+
+    function drawStickPlayer(ctx, canvas, sim, x, opts, scene) {
+      const isServeHitter = sim.shot.type === "serve" && opts.role === "hitter";
+      const ground = worldToScreen(canvas, x, 0, scene);
+      const headCenter = worldToScreen(canvas, x, 1.64, scene);
+      const shoulder = worldToScreen(canvas, x, 1.35, scene);
+      const hip = worldToScreen(canvas, x, 0.95, scene);
+      const frontFoot = worldToScreen(canvas, x + (opts.facingRight ? 0.18 : -0.18), 0, scene);
+      const backFoot = worldToScreen(canvas, x - (opts.facingRight ? 0.18 : -0.18), 0, scene);
+      const headR = 8.6;
+
+      ctx.strokeStyle = opts.color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(headCenter.x, headCenter.y, headR, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(shoulder.x, shoulder.y);
+      ctx.lineTo(hip.x, hip.y);
+      ctx.moveTo(hip.x, hip.y);
+      ctx.lineTo(frontFoot.x, ground.y);
+      ctx.moveTo(hip.x, hip.y);
+      ctx.lineTo(backFoot.x, ground.y);
+      ctx.stroke();
+
+      ctx.strokeStyle = opts.color;
+      ctx.lineWidth = 3;
+      const lead = opts.facingRight ? 1 : -1;
+
+      if (isServeHitter) {
+        const tossArm = { x: shoulder.x - 8 * lead, y: shoulder.y - 28 };
+        const racketHand = { x: shoulder.x + 10 * lead, y: shoulder.y - 34 };
+        const racketTip = { x: racketHand.x + 10 * lead, y: racketHand.y - 28 };
+        ctx.beginPath();
+        ctx.moveTo(shoulder.x, shoulder.y);
+        ctx.lineTo(tossArm.x, tossArm.y);
+        ctx.moveTo(shoulder.x, shoulder.y);
+        ctx.lineTo(racketHand.x, racketHand.y);
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(248, 250, 252, 0.94)";
+        ctx.beginPath();
+        ctx.moveTo(racketHand.x, racketHand.y);
+        ctx.lineTo(racketTip.x, racketTip.y);
+        ctx.ellipse(racketTip.x + 7 * lead, racketTip.y - 2, 10, 19, 0.4 * lead, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        const hand = { x: shoulder.x + 11 * lead, y: shoulder.y + 4 };
+        const support = { x: shoulder.x - 9 * lead, y: shoulder.y + 16 };
+        const racketTip = worldToScreen(canvas, x + 0.42 * lead, 1.42, scene);
+        ctx.beginPath();
+        ctx.moveTo(shoulder.x, shoulder.y);
+        ctx.lineTo(hand.x, hand.y);
+        ctx.moveTo(shoulder.x, shoulder.y);
+        ctx.lineTo(support.x, support.y);
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(248, 250, 252, 0.94)";
+        ctx.beginPath();
+        ctx.moveTo(hand.x, hand.y);
+        ctx.lineTo(racketTip.x, racketTip.y);
+        ctx.ellipse(racketTip.x + 7 * lead, racketTip.y, 10, 19, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    function drawStrikeZone(ctx, canvas, sim, scene) {
+      const x = sim.env.receiverX;
+      const bottom = worldToScreen(canvas, x, STRIKE_ZONE.min, scene);
+      const top = worldToScreen(canvas, x, STRIKE_ZONE.max, scene);
+      ctx.strokeStyle = "rgba(245, 158, 11, 0.95)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(bottom.x, bottom.y);
+      ctx.lineTo(top.x, top.y);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(245, 158, 11, 0.9)";
+      ctx.font = "12px Inter, system-ui, sans-serif";
+      ctx.fillText("receiver", bottom.x + 8, bottom.y + 18);
+    }
+
+    function drawTrajectory(ctx, canvas, sim, tNow, accent, scene) {
+      const states = sim.states;
+      if (!states.length) return;
+
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      states.forEach((s, idx) => {
+        const p = worldToScreen(canvas, s.x, s.y, scene);
+        if (idx === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+
+      ctx.setLineDash([7, 7]);
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.75)";
+      ctx.lineWidth = 1.4;
+      const current = interpolateStateAtTime(states, tNow);
+      if (current) {
+        const p0 = worldToScreen(canvas, current.x, current.y, scene);
+        const fall = worldToScreen(canvas, current.x, 0, scene);
+        ctx.beginPath();
+        ctx.moveTo(p0.x, p0.y);
+        ctx.lineTo(fall.x, fall.y);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+
+      sim.bounces.forEach((bounce, idx) => {
+        const p = worldToScreen(canvas, bounce.x, bounce.y, scene);
+        ctx.fillStyle = "rgba(34, 197, 94, 0.96)";
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(226, 232, 240, 0.92)";
+        ctx.font = "12px Inter, system-ui, sans-serif";
+        ctx.fillText(`bounce ${idx + 1}`, p.x + 8, p.y - 8);
+      });
+
+      if (sim.passState) {
+        const p = worldToScreen(canvas, sim.passState.x, sim.passState.y, scene);
+        ctx.fillStyle = sim.inStrikeZone ? "rgba(34, 197, 94, 0.96)" : "rgba(239, 68, 68, 0.96)";
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(226, 232, 240, 0.95)";
+        ctx.font = "12px Inter, system-ui, sans-serif";
+        ctx.fillText(`pass ${sim.passState.y.toFixed(2)} m`, p.x + 8, p.y - 8);
+      }
+    }
+
+    function drawBall(ctx, canvas, sim, tNow, scene) {
+      const current = interpolateStateAtTime(sim.states, tNow);
+      if (!current) return;
+      const p = worldToScreen(canvas, current.x, current.y, scene);
+      const courtPixels = Math.max(100, worldToScreen(canvas, sim.env.courtLength, 0, scene).x - worldToScreen(canvas, 0, 0, scene).x);
+      const rPx = Math.max(4, sim.env.ball.radius * (courtPixels / sim.env.courtLength));
+      ctx.fillStyle = "rgba(248, 250, 252, 0.99)";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, rPx, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(15, 23, 42, 0.9)";
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, rPx, -0.9, 2.3);
+      ctx.stroke();
+    }
+
+    function drawInfoBox(ctx, canvas, sim) {
+      const x = 18;
+      const y = 16;
+      const lines = [
+        `${sim.outcome}`,
+        `net clearance: ${sim.netClearance == null ? "–" : `${sim.netClearance.toFixed(2)} m`}`,
+        `${sim.passState ? `pass height: ${sim.passState.y.toFixed(2)} m` : "receiver not reached"}`,
+        `ρ = ${sim.env.density.toFixed(3)} kg/m³`,
+      ];
+      ctx.fillStyle = "rgba(15, 23, 42, 0.78)";
+      ctx.fillRect(x, y, 220, 88);
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.2)";
+      ctx.strokeRect(x, y, 220, 88);
+      ctx.fillStyle = "rgba(248, 250, 252, 0.96)";
+      ctx.font = "13px Inter, system-ui, sans-serif";
+      lines.forEach((line, idx) => ctx.fillText(line, x + 10, y + 20 + idx * 18));
+    }
+
+    function drawPanel(canvas, sim, tNow, accent) {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, rect.width, rect.height);
+
+      const scene = state.scene;
+      const tClamped = Math.min(tNow, sim.duration);
+      drawCourt(ctx, { width: rect.width, height: rect.height }, sim, scene, tClamped);
+      drawTrajectory(ctx, { width: rect.width, height: rect.height }, sim, tClamped, accent, scene);
+      drawStrikeZone(ctx, { width: rect.width, height: rect.height }, sim, scene);
+      drawStickPlayer(ctx, { width: rect.width, height: rect.height }, sim, sim.shot.launchX, { color: accent, facingRight: true, role: "hitter" }, scene);
+      drawStickPlayer(ctx, { width: rect.width, height: rect.height }, sim, sim.env.receiverX, { color: "rgba(248, 250, 252, 0.94)", facingRight: false, role: "receiver" }, scene);
+      drawBall(ctx, { width: rect.width, height: rect.height }, sim, tClamped, scene);
+      drawInfoBox(ctx, { width: rect.width, height: rect.height }, sim);
+    }
+
+    function drawAll() {
+      drawPanel(earthCanvas, state.sims.earth, state.time, SHOTS[state.shotKey].color);
+      drawPanel(customCanvas, state.sims.custom, state.time, SHOTS[state.shotKey].color);
+    }
+
+    function tick(ts) {
+      if (!state.lastTs) state.lastTs = ts;
+      const dt = Math.min(0.05, (ts - state.lastTs) / 1000);
+      state.lastTs = ts;
+      const maxDuration = Math.max(state.sims?.earth?.duration || 0, state.sims?.custom?.duration || 0, 0.1);
+
+      if (state.playing) {
+        state.time += dt;
+        if (state.time > maxDuration + 0.45) state.time = 0;
+        drawAll();
+      }
+      requestAnimationFrame(tick);
+    }
+
+    playPauseBtn.addEventListener("click", () => {
+      state.playing = !state.playing;
+      playPauseBtn.textContent = state.playing ? "Pause" : "Play";
+      drawAll();
+    });
+
+    resetBtn.addEventListener("click", () => {
+      state.time = 0;
+      drawAll();
+    });
+
+    copyEarthBtn.addEventListener("click", () => {
+      state.customEnvRaw = { ...EARTH_ENV, name: "Earth copy" };
+      envPresetEl.value = "custom";
+      syncControls();
+      recompute();
+    });
+
+    envPresetEl.addEventListener("change", () => {
+      const value = envPresetEl.value;
+      if (value !== "custom") {
+        state.customEnvRaw = { ...PRESETS[value] };
+        syncControls();
+        recompute();
+      }
+    });
+
+    buildShotButtons();
+    buildControls(shotControlsEl, shotControlConfig, "shot");
+    buildControls(envControlsEl, envControlConfig, "env");
+    syncControls();
+    recompute();
+    requestAnimationFrame(tick);
+    window.addEventListener("resize", drawAll);
+  </script>
+</body>
+</html>

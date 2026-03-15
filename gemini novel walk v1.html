@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pride & Prejudice – character network demo</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 0; }
+    header { padding: 12px 14px; border-bottom: 1px solid #ddd; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    header .group { display: flex; gap: 10px; align-items: center; }
+    label { font-size: 14px; }
+    input[type="range"] { width: 260px; }
+    button { padding: 6px 10px; font-size: 14px; }
+    .meta { color: #444; font-size: 13px; }
+    svg { display: block; width: 100vw; height: calc(100vh - 62px); background: #fafafa; }
+    .link { stroke: #999; stroke-opacity: 0.35; }
+    .node { stroke: #fff; stroke-width: 1.5px; }
+    .label { font-size: 11px; fill: #222; pointer-events: none; }
+    .tooltip {
+      position: fixed; left: 0; top: 0; transform: translate(-9999px, -9999px);
+      background: rgba(20,20,20,0.92); color: #fff; padding: 8px 10px; border-radius: 8px;
+      font-size: 12px; max-width: 320px; line-height: 1.3;
+    }
+    .hint { padding: 8px 14px; border-bottom: 1px solid #eee; color: #333; font-size: 13px; }
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+           border: 1px solid #ddd; padding: 1px 6px; border-radius: 6px; background: #fff; }
+  </style>
+</head>
+<body>
+<header>
+  <div class="group">
+    <label for="chapter">Chapter</label>
+    <input id="chapter" type="range" min="1" max="10" value="1" step="1">
+    <strong id="chapterLabel">1</strong>
+  </div>
+
+  <div class="group">
+    <label><input id="modeCumulative" type="radio" name="mode" checked> Cumulative</label>
+    <label><input id="modeCurrent" type="radio" name="mode"> Current chapter only</label>
+  </div>
+
+  <div class="group">
+    <button id="reset">Reset layout</button>
+    <span class="meta">Drag nodes to pin them. Double-click a node to unpin.</span>
+  </div>
+</header>
+
+<div class="hint">
+  This is a demo dataset (not extracted from the text). It shows what your “as the novel progresses” network will feel like.
+  Next step is swapping the demo data for real per-chapter edges.
+</div>
+
+<svg id="viz"></svg>
+<div id="tip" class="tooltip"></div>
+
+<!-- D3 (internet required) -->
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script>
+/**
+ * DEMO DATA
+ * - chapters: array of { n: <chapterNumber>, edges: [{source, target, weight, note?}, ...] }
+ * - weight roughly means "how much interaction" in that chapter.
+ * Replace this with real data later.
+ */
+const DATA = {
+  chapters: [
+    { n: 1, edges: [
+      { source: "Mr Bennet", target: "Mrs Bennet", weight: 6, note: "Household banter / pressure about Netherfield" },
+      { source: "Mrs Bennet", target: "Jane Bennet", weight: 2 },
+      { source: "Mrs Bennet", target: "Elizabeth Bennet", weight: 2 },
+      { source: "Jane Bennet", target: "Elizabeth Bennet", weight: 2 }
+    ]},
+    { n: 2, edges: [
+      { source: "Mr Bennet", target: "Mrs Bennet", weight: 4 },
+      { source: "Mrs Bennet", target: "Mr Bennet", weight: 2 },
+      { source: "Mrs Bennet", target: "Kitty Bennet", weight: 1 },
+      { source: "Mrs Bennet", target: "Lydia Bennet", weight: 2 }
+    ]},
+    { n: 3, edges: [
+      { source: "Charles Bingley", target: "Jane Bennet", weight: 4, note: "First strong connection forms" },
+      { source: "Charles Bingley", target: "Fitzwilliam Darcy", weight: 3 },
+      { source: "Fitzwilliam Darcy", target: "Elizabeth Bennet", weight: 1, note: "A charged first impression" },
+      { source: "Caroline Bingley", target: "Charles Bingley", weight: 2 }
+    ]},
+    { n: 4, edges: [
+      { source: "Elizabeth Bennet", target: "Jane Bennet", weight: 4 },
+      { source: "Fitzwilliam Darcy", target: "Charles Bingley", weight: 2 },
+      { source: "Caroline Bingley", target: "Jane Bennet", weight: 1 }
+    ]},
+    { n: 5, edges: [
+      { source: "Elizabeth Bennet", target: "Charles Bingley", weight: 1 },
+      { source: "Elizabeth Bennet", target: "Caroline Bingley", weight: 2 },
+      { source: "Fitzwilliam Darcy", target: "Elizabeth Bennet", weight: 2 }
+    ]},
+    { n: 6, edges: [
+      { source: "Charlotte Lucas", target: "Elizabeth Bennet", weight: 3 },
+      { source: "Sir William Lucas", target: "Elizabeth Bennet", weight: 1 },
+      { source: "Charlotte Lucas", target: "Jane Bennet", weight: 1 }
+    ]},
+    { n: 7, edges: [
+      { source: "Mrs Bennet", target: "Charles Bingley", weight: 2 },
+      { source: "Jane Bennet", target: "Charles Bingley", weight: 2 },
+      { source: "Elizabeth Bennet", target: "Fitzwilliam Darcy", weight: 2 }
+    ]},
+    { n: 8, edges: [
+      { source: "George Wickham", target: "Elizabeth Bennet", weight: 3, note: "New node enters; attention shifts" },
+      { source: "George Wickham", target: "Fitzwilliam Darcy", weight: 2, note: "Tension / history implied" },
+      { source: "George Wickham", target: "Lydia Bennet", weight: 1 }
+    ]},
+    { n: 9, edges: [
+      { source: "George Wickham", target: "Elizabeth Bennet", weight: 2 },
+      { source: "George Wickham", target: "Lydia Bennet", weight: 2 },
+      { source: "Jane Bennet", target: "Elizabeth Bennet", weight: 2 }
+    ]},
+    { n: 10, edges: [
+      { source: "Fitzwilliam Darcy", target: "Elizabeth Bennet", weight: 3 },
+      { source: "Caroline Bingley", target: "Fitzwilliam Darcy", weight: 2 },
+      { source: "Caroline Bingley", target: "Elizabeth Bennet", weight: 2 }
+    ]}
+  ]
+};
+
+// ---------- Visualisation code ----------
+const svg = d3.select("#viz");
+const tip = document.getElementById("tip");
+
+function sizeToViewport() {
+  const w = window.innerWidth;
+  const h = window.innerHeight - (document.querySelector("header").offsetHeight + document.querySelector(".hint").offsetHeight);
+  svg.attr("width", w).attr("height", Math.max(360, h));
+  return { w, h: Math.max(360, h) };
+}
+
+let { w: width, h: height } = sizeToViewport();
+window.addEventListener("resize", () => {
+  ({ w: width, h: height } = sizeToViewport());
+  sim.force("center", d3.forceCenter(width / 2, height / 2));
+  sim.alpha(0.3).restart();
+});
+
+const gLinks = svg.append("g");
+const gNodes = svg.append("g");
+const gLabels = svg.append("g");
+
+let linkSel = gLinks.selectAll("line");
+let nodeSel = gNodes.selectAll("circle");
+let labelSel = gLabels.selectAll("text");
+
+const sim = d3.forceSimulation()
+  .force("link", d3.forceLink().id(d => d.id).distance(90).strength(0.22))
+  .force("charge", d3.forceManyBody().strength(-240))
+  .force("collide", d3.forceCollide().radius(d => d.r + 6))
+  .force("center", d3.forceCenter(width / 2, height / 2));
+
+function makeCurrentChapter(data, chapterN) {
+  const ch = data.chapters.find(c => c.n === chapterN);
+  const links = (ch ? ch.edges : []).map(e => ({ ...e }));
+  const nodeIds = new Set();
+  links.forEach(l => { nodeIds.add(l.source); nodeIds.add(l.target); });
+  const nodes = [...nodeIds].map(id => ({ id }));
+  return { nodes, links };
+}
+
+function makeCumulative(data, chapterN) {
+  const edgeMap = new Map(); // key -> {source,target,weight,notes[]}
+  for (const ch of data.chapters) {
+    if (ch.n > chapterN) break;
+    for (const e of ch.edges) {
+      const a = e.source, b = e.target;
+      const key = a < b ? `${a}|||${b}` : `${b}|||${a}`;
+      if (!edgeMap.has(key)) edgeMap.set(key, { source: a < b ? a : b, target: a < b ? b : a, weight: 0, notes: [] });
+      const obj = edgeMap.get(key);
+      obj.weight += e.weight || 1;
+      if (e.note) obj.notes.push(`Ch ${ch.n}: ${e.note}`);
+    }
+  }
+  const links = [...edgeMap.values()];
+  const nodeIds = new Set();
+  links.forEach(l => { nodeIds.add(l.source); nodeIds.add(l.target); });
+  const nodes = [...nodeIds].map(id => ({ id }));
+  return { nodes, links };
+}
+
+function degreeMap(links) {
+  const deg = new Map();
+  for (const l of links) {
+    deg.set(l.source, (deg.get(l.source) || 0) + 1);
+    deg.set(l.target, (deg.get(l.target) || 0) + 1);
+  }
+  return deg;
+}
+
+function showTip(html, x, y) {
+  tip.innerHTML = html;
+  tip.style.transform = `translate(${x + 12}px, ${y + 12}px)`;
+}
+
+function hideTip() {
+  tip.style.transform = "translate(-9999px,-9999px)";
+}
+
+function update(chapterN) {
+  const mode = document.getElementById("modeCurrent").checked ? "current" : "cumulative";
+  const model = mode === "current"
+    ? makeCurrentChapter(DATA, chapterN)
+    : makeCumulative(DATA, chapterN);
+
+  // node radius based on degree
+  const deg = degreeMap(model.links);
+  model.nodes.forEach(n => {
+    n.r = 6 + Math.min(10, (deg.get(n.id) || 0) * 1.6);
+  });
+
+  // --- LINKS ---
+  linkSel = linkSel.data(model.links, d => `${d.source}|||${d.target}`);
+  linkSel.exit().remove();
+  const linkEnter = linkSel.enter().append("line")
+    .attr("class", "link")
+    .on("mousemove", (event, d) => {
+      const extra = (d.notes && d.notes.length) ? `<div style="margin-top:6px; opacity:0.9">${d.notes.slice(0,4).join("<br>")}</div>` : "";
+      showTip(
+        `<strong>${d.source}</strong> ↔ <strong>${d.target}</strong><br>Weight: ${d.weight || 1}${extra}`,
+        event.clientX, event.clientY
+      );
+    })
+    .on("mouseleave", hideTip);
+
+  linkSel = linkEnter.merge(linkSel)
+    .attr("stroke-width", d => Math.max(1, Math.sqrt(d.weight || 1)));
+
+  // --- NODES ---
+  nodeSel = nodeSel.data(model.nodes, d => d.id);
+  nodeSel.exit().remove();
+  const nodeEnter = nodeSel.enter().append("circle")
+    .attr("class", "node")
+    .attr("r", d => d.r)
+    .attr("fill", "#4e79a7")
+    .on("dblclick", (event, d) => { d.fx = null; d.fy = null; })
+    .on("mousemove", (event, d) => showTip(`<strong>${d.id}</strong>`, event.clientX, event.clientY))
+    .on("mouseleave", hideTip)
+    .call(d3.drag()
+      .on("start", (event, d) => { if (!event.active) sim.alphaTarget(0.25).restart(); d.fx = d.x; d.fy = d.y; })
+      .on("drag", (event, d) => { d.fx = event.x; d.fy = event.y; })
+      .on("end", (event, d) => { if (!event.active) sim.alphaTarget(0); })
+    );
+
+  nodeSel = nodeEnter.merge(nodeSel)
+    .attr("r", d => d.r);
+
+  // --- LABELS ---
+  labelSel = labelSel.data(model.nodes, d => d.id);
+  labelSel.exit().remove();
+  const labelEnter = labelSel.enter().append("text")
+    .attr("class", "label")
+    .text(d => d.id);
+
+  labelSel = labelEnter.merge(labelSel);
+
+  sim.nodes(model.nodes).on("tick", () => {
+    linkSel
+      .attr("x1", d => d3.select ? (typeof d.source === "object" ? d.source.x : 0) : 0);
+
+    // Because link force will replace source/target strings with node objects:
+    linkSel
+      .attr("x1", d => d.source.x)
+      .attr("y1", d => d.source.y)
+      .attr("x2", d => d.target.x)
+      .attr("y2", d => d.target.y);
+
+    nodeSel
+      .attr("cx", d => d.x)
+      .attr("cy", d => d.y);
+
+    labelSel
+      .attr("x", d => d.x + d.r + 4)
+      .attr("y", d => d.y + 4);
+  });
+
+  sim.force("link").links(model.links);
+  sim.alpha(0.7).restart();
+}
+
+// UI wiring
+const slider = document.getElementById("chapter");
+const chapterLabel = document.getElementById("chapterLabel");
+
+function sync() {
+  const n = +slider.value;
+  chapterLabel.textContent = n;
+  update(n);
+}
+
+slider.addEventListener("input", sync);
+document.getElementById("modeCumulative").addEventListener("change", sync);
+document.getElementById("modeCurrent").addEventListener("change", sync);
+
+document.getElementById("reset").addEventListener("click", () => {
+  // Unpin everything and “reheat” the simulation
+  sim.nodes().forEach(n => { n.fx = null; n.fy = null; });
+  sim.alpha(1).restart();
+});
+
+sync();
+</script>
+</body>
+</html>

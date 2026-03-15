@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Physics Optics Engine</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #fff; text-align: center; margin: 0; padding: 20px; }
+        #app-container { max-width: 900px; margin: 0 auto; background: #1e1e24; padding: 20px; border-radius: 10px; box-shadow: 0 8px 16px rgba(0,0,0,0.8); }
+        canvas { border: 2px solid #555; background: #0a0a0a; border-radius: 5px; cursor: crosshair; margin-top: 10px; }
+        .controls { margin-top: 20px; }
+        button { padding: 12px 24px; font-size: 16px; font-weight: bold; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; transition: 0.2s; }
+        button:hover { background: #0056b3; }
+        h2 { margin-top: 0; color: #4da6ff; }
+        #prompt { font-size: 18px; font-weight: bold; margin: 10px 0; min-height: 50px; color: #e0e0e0; }
+        #feedback { font-size: 16px; font-weight: bold; min-height: 25px; }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <h2>Ultimate Physics Optics Engine</h2>
+    <div id="prompt">Loading...</div>
+    <div id="feedback"></div>
+    <canvas id="simCanvas" width="800" height="500"></canvas>
+    <div class="controls">
+        <button onclick="loadRandomTask()">Next Challenge</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    const promptEl = document.getElementById('prompt');
+    const feedbackEl = document.getElementById('feedback');
+
+    let currentTask = null; let isSolved = false; let activeTargets = [];
+    let isDragging = false; let dragStartX = 0; let dragStartY = 0; let dragCurrentX = 0; let dragCurrentY = 0;
+
+    // --- PHYSICS MATH UTILS ---
+    const getRefracted = (aIn, aNorm, n1, n2) => {
+        let rel = (aIn - aNorm + 360) % 360;
+        if (rel > 180) rel -= 360;
+        let sinR = (n1 / n2) * Math.sin(rel * Math.PI / 180);
+        if (Math.abs(sinR) > 1) return null; // TIR
+        return (aNorm + Math.asin(sinR) * 180 / Math.PI + 360) % 360;
+    };
+    const getReflected = (aIn, aNorm) => {
+        let rel = (aIn - aNorm + 360) % 360;
+        if (rel > 180) rel -= 360;
+        return (aNorm - rel + 180 + 360) % 360;
+    };
+
+    // --- DRAWING UTILS ---
+    const drawLineByAngle = (cx, cy, angleDeg, color="red", len=150, drawArrow=true) => {
+        let r = angleDeg * Math.PI / 180;
+        let ex = cx + len * Math.cos(r); let ey = cy + len * Math.sin(r);
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey);
+        ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke();
+        if (drawArrow) {
+            let mx = cx + (len/2)*Math.cos(r); let my = cy + (len/2)*Math.sin(r);
+            ctx.save(); ctx.translate(mx, my); ctx.rotate(r);
+            ctx.beginPath(); ctx.moveTo(4, 0); ctx.lineTo(-10, -7); ctx.lineTo(-10, 7);
+            ctx.fillStyle = color; ctx.fill(); ctx.restore();
+        }
+    };
+
+    const drawNormal = (x, y, angleDeg) => {
+        let r = angleDeg * Math.PI / 180;
+        ctx.save(); ctx.translate(x, y); ctx.rotate(r);
+        ctx.setLineDash([6, 6]); ctx.beginPath(); 
+        ctx.moveTo(-150, 0); ctx.lineTo(150, 0); 
+        ctx.strokeStyle = "#888"; ctx.lineWidth = 2; ctx.stroke();
+        ctx.restore();
+    };
+
+    const addTargetByAngle = (cx, cy, angleDeg, isCorrect, label, dist=130) => {
+        let r = angleDeg * Math.PI / 180;
+        activeTargets.push({ x: cx + dist * Math.cos(r), y: cy + dist * Math.sin(r), label, isCorrect });
+    };
+
+    const renderTargets = () => {
+        if (isSolved) return;
+        activeTargets.forEach(t => {
+            ctx.beginPath(); ctx.arc(t.x, t.y, 18, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(255, 255, 0, 0.2)"; ctx.fill();
+            ctx.strokeStyle = "yellow"; ctx.lineWidth = 2; ctx.stroke();
+            ctx.fillStyle = "white"; ctx.font = "bold 16px Arial"; ctx.fillText(t.label, t.x - 6, t.y + 6);
+        });
+    };
+
+    const fillGlass = "rgba(80,130,220,0.3)"; const strokeGlass = "#55a";
+    const drawRectBlock = () => { ctx.fillStyle=fillGlass; ctx.fillRect(150,200,500,150); ctx.strokeStyle=strokeGlass; ctx.strokeRect(150,200,500,150); };
+    const drawSemiCtoF = () => { ctx.fillStyle=fillGlass; ctx.beginPath(); ctx.arc(400,250,180,0,Math.PI); ctx.fill(); ctx.strokeStyle=strokeGlass; ctx.stroke(); };
+    const drawWater = () => { ctx.fillStyle="rgba(0,100,200,0.3)"; ctx.fillRect(0,250,800,250); ctx.strokeStyle="cyan"; ctx.beginPath(); ctx.moveTo(0,250); ctx.lineTo(800,250); ctx.stroke(); };
+    const drawPoly = (pts) => { ctx.fillStyle=fillGlass; ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.closePath(); ctx.fill(); ctx.strokeStyle=strokeGlass; ctx.stroke(); };
+    const drawLens = (cx, cy) => { ctx.fillStyle=fillGlass; ctx.beginPath(); ctx.arc(cx-60, cy, 120, -Math.PI/3, Math.PI/3); ctx.arc(cx+60, cy, 120, Math.PI-Math.PI/3, Math.PI+Math.PI/3); ctx.fill(); };
+
+    // --- TASK LIBRARY ---
+    const tasks = [
+        {
+            q: "Rectangular Block (Entering): Ray from Air (n=1) to Glass (n=1.5).",
+            setup: () => { activeTargets=[]; 
+                addTargetByAngle(350,200, 61.9, true, 'A'); addTargetByAngle(350,200, 45, false, 'B'); 
+                addTargetByAngle(350,200, 28.1, false, 'C'); addTargetByAngle(350,200, 135, false, 'D'); addTargetByAngle(350,200, 90, false, 'E');
+            },
+            draw: () => {
+                drawRectBlock(); drawLineByAngle(200,50, 45, "red", 212); // Hits 350,200
+                if(!isSolved) renderTargets(); else { drawNormal(350,200,90); drawLineByAngle(350,200, 61.9, "red", 180); }
+            }
+        },
+        {
+            q: "Rectangular Block (Leaving): Ray inside Glass exiting to Air.",
+            setup: () => { activeTargets=[]; 
+                addTargetByAngle(500,350, 45, true, 'A'); addTargetByAngle(500,350, 61.9, false, 'B'); 
+                addTargetByAngle(500,350, 28.1, false, 'C'); addTargetByAngle(500,350, 135, false, 'D'); addTargetByAngle(500,350, 90, false, 'E');
+            },
+            draw: () => {
+                drawRectBlock(); drawLineByAngle(350,200, 61.9, "red", 170); // Hits 500,350
+                if(!isSolved) renderTargets(); else { drawNormal(500,350,90); drawLineByAngle(500,350, 45, "red", 150); }
+            }
+        },
+        {
+            q: "Glass to Air (Curved to Flat). Critical angle c = 41.8°. Ray approaches flat side at i = 30° (i < c).",
+            setup: () => { activeTargets=[]; 
+                addTargetByAngle(400,250, 221.4, true, 'A'); addTargetByAngle(400,250, 240, false, 'B'); 
+                addTargetByAngle(400,250, 255, false, 'C'); addTargetByAngle(400,250, 180, false, 'D'); addTargetByAngle(400,250, 120, false, 'E');
+            },
+            draw: () => {
+                drawSemiCtoF(); drawLineByAngle(490,405.8, 240, "red", 180); // Hits 400,250 from bottom right
+                if(!isSolved) renderTargets(); else { drawNormal(400,250,90); drawLineByAngle(400,250, 221.4, "red", 150); }
+            }
+        },
+        {
+            q: "Glass to Air (Curved to Flat). Critical angle c = 41.8°. Ray approaches exactly at c.",
+            setup: () => { activeTargets=[]; 
+                addTargetByAngle(400,250, 180, true, 'A'); addTargetByAngle(400,250, 228.2, false, 'B'); 
+                addTargetByAngle(400,250, 270, false, 'C'); addTargetByAngle(400,250, 131.8, false, 'D');
+            },
+            draw: () => {
+                drawSemiCtoF(); drawLineByAngle(400 + 180*Math.cos(41.8*Math.PI/180), 250 + 180*Math.sin(41.8*Math.PI/180), 270-41.8, "red", 180); 
+                if(!isSolved) renderTargets(); else { drawNormal(400,250,90); drawLineByAngle(400,250, 180, "red", 150); }
+            }
+        },
+        {
+            q: "Glass to Air (Curved to Flat). Critical angle c = 41.8°. Ray approaches at i = 60° (i > c).",
+            setup: () => { activeTargets=[]; 
+                addTargetByAngle(400,250, 330, true, 'A'); addTargetByAngle(400,250, 210, false, 'B'); 
+                addTargetByAngle(400,250, 180, false, 'C'); addTargetByAngle(400,250, 270, false, 'D'); addTargetByAngle(400,250, 150, false, 'E');
+            },
+            draw: () => {
+                drawSemiCtoF(); drawLineByAngle(400 + 180*Math.cos(60*Math.PI/180), 250 + 180*Math.sin(60*Math.PI/180), 210, "red", 180); 
+                if(!isSolved) renderTargets(); else { drawNormal(400,250,90); drawLineByAngle(400,250, 330, "red", 150); }
+            }
+        },
+        {
+            q: "Water to Air. c = 48.8°. Ray approaches surface from below at i = 30° (i < c).",
+            setup: () => { activeTargets=[]; 
+                addTargetByAngle(400,250, 228.3, true, 'A'); addTargetByAngle(400,250, 240, false, 'B'); 
+                addTargetByAngle(400,250, 255, false, 'C'); addTargetByAngle(400,250, 120, false, 'D'); addTargetByAngle(400,250, 180, false, 'E');
+            },
+            draw: () => {
+                drawWater(); drawLineByAngle(486.6, 400, 240, "red", 173.2); // Hits 400, 250
+                if(!isSolved) renderTargets(); else { drawNormal(400,250,90); drawLineByAngle(400,250, 228.3, "red", 150); }
+            }
+        },
+        {
+            q: "Mirror Pair: A ray hits the first horizontal mirror, then heads to a second vertical mirror at 90°.",
+            setup: () => { activeTargets=[]; 
+                activeTargets.push({x: 200, y: 100, label: 'A', isCorrect: true}); activeTargets.push({x: 400, y: 50, label: 'B', isCorrect: false}); 
+                activeTargets.push({x: 550, y: 100, label: 'C', isCorrect: false}); activeTargets.push({x: 200, y: 250, label: 'D', isCorrect: false});
+            },
+            draw: () => {
+                ctx.strokeStyle="cyan"; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(150,300); ctx.lineTo(400,300); ctx.lineTo(400,50); ctx.stroke();
+                drawLineByAngle(100, 100, 45, "red", 141.4); // Hits H-mirror at 200,200? No, 100+(141*.7) = 200. Hits at 200, 200. Let's adjust to hit 300,300.
+                drawLineByAngle(200, 200, 45, "red", 141.4, false); // Hits 300, 300
+                if(!isSolved) { drawLineByAngle(300, 300, 315, "red", 141.4); renderTargets(); } // Hits V-mirror at 400, 200
+                else { 
+                    drawLineByAngle(300, 300, 315, "red", 141.4); drawNormal(400,200,0);
+                    drawLineByAngle(400, 200, 225, "red", 150); // Exits anti-parallel up-left!
+                }
+            }
+        },
+        {
+            q: "45° Prism (2 Reflections Retroreflector): Ray enters hypotenuse normally.",
+            setup: () => { activeTargets=[]; 
+                activeTargets.push({x: 100, y: 325, label: 'A', isCorrect: true}); activeTargets.push({x: 275, y: 450, label: 'B', isCorrect: false}); 
+                activeTargets.push({x: 400, y: 325, label: 'C', isCorrect: false}); activeTargets.push({x: 200, y: 200, label: 'D', isCorrect: false});
+            },
+            draw: () => {
+                drawPoly([[200,100], [350,250], [200,400]]); // Hypotenuse on left
+                drawLineByAngle(50, 175, 0, "red", 150); // Hits 200, 175
+                if(!isSolved) { drawLineByAngle(200, 175, 0, "red", 75); renderTargets(); } // Hits 275, 175
+                else { 
+                    drawLineByAngle(200, 175, 0, "red", 75); drawNormal(275,175,135);
+                    drawLineByAngle(275, 175, 90, "red", 150); drawNormal(275,325,225); // Hits 275, 325
+                    drawLineByAngle(275, 325, 180, "red", 175); // 180 turnaround!
+                }
+            }
+        },
+        {
+            q: "Convex Lens (Entering): Ray travelling parallel to the principal axis enters the curved front face.",
+            setup: () => { activeTargets=[]; 
+                addTargetByAngle(350, 180, 13, true, 'A'); addTargetByAngle(350, 180, 0, false, 'B'); 
+                addTargetByAngle(350, 180, -15, false, 'C'); addTargetByAngle(350, 180, 30, false, 'D'); 
+            },
+            draw: () => {
+                drawLens(400, 250);
+                ctx.setLineDash([2,4]); ctx.beginPath(); ctx.moveTo(50, 250); ctx.lineTo(750, 250); ctx.strokeStyle="#666"; ctx.stroke(); ctx.setLineDash([]);
+                drawLineByAngle(150, 180, 0, "red", 200); // Hits at 350, 180
+                if(!isSolved) renderTargets(); else { drawNormal(350,180,160); drawLineByAngle(350,180, 13, "red", 100); } // Bends towards normal (downwards)
+            }
+        },
+        {
+            q: "Identify the Angle of Refraction. Click the correct letter.",
+            setup: () => { activeTargets = [
+                {x: 320, y: 150, label: 'A', isCorrect: false}, {x: 250, y: 180, label: 'B', isCorrect: false}, 
+                {x: 380, y: 280, label: 'C', isCorrect: true}, {x: 460, y: 220, label: 'D', isCorrect: false}
+            ];},
+            draw: () => {
+                drawRectBlock(); drawNormal(350, 200, 90);
+                drawLineByAngle(200, 50, 45, "red", 212, true); drawLineByAngle(350, 200, 61.9, "red", 150, true);
+                if(!isSolved) renderTargets(); 
+            }
+        },
+        {
+            q: "INTERACTIVE: Click and drag from the RED dot to draw a bidirectional NORMAL line.",
+            setup: () => { activeTargets=[]; isDragging=false; },
+            draw: () => {
+                drawRectBlock();
+                drawLineByAngle(350, 200, 61.9, "red", 170); // Inside glass, hitting bottom boundary at (500, 350)
+                ctx.beginPath(); ctx.arc(500, 350, 6, 0, Math.PI*2); ctx.fillStyle="red"; ctx.fill();
+
+                if (isDragging || isSolved) {
+                    let a = isSolved ? Math.PI/2 : Math.atan2(dragCurrentY - 350, dragCurrentX - 500);
+                    let len = 120;
+                    ctx.beginPath(); ctx.moveTo(500 - len*Math.cos(a), 350 - len*Math.sin(a)); // Draws through boundary!
+                    ctx.lineTo(500 + len*Math.cos(a), 350 + len*Math.sin(a)); 
+                    ctx.strokeStyle = "yellow"; ctx.lineWidth = 3; ctx.setLineDash([8,8]); ctx.stroke(); ctx.setLineDash([]);
+                }
+            },
+            checkLine: (ex, ey) => {
+                let drawn = Math.atan2(ey - 350, ex - 500) * 180 / Math.PI;
+                let diff = Math.abs((drawn - 90 + 360) % 180); // Modulo 180 allows dragging up OR down perfectly
+                return Math.min(diff, 180 - diff) <= 12;
+            }
+        }
+    ];
+
+    // --- GAME ENGINE ---
+    function loadRandomTask() {
+        isSolved = false; isDragging = false; feedbackEl.innerText = "";
+        const r = Math.floor(Math.random() * tasks.length);
+        currentTask = tasks[r];
+        promptEl.innerText = currentTask.q;
+        currentTask.setup();
+        render();
+    }
+
+    function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (currentTask) currentTask.draw();
+    }
+
+    // --- INTERACTION ---
+    canvas.addEventListener('mousedown', (e) => {
+        if (isSolved) return;
+        const rect = canvas.getBoundingClientRect(); const mx = e.clientX - rect.left; const my = e.clientY - rect.top;
+
+        if (currentTask.q.includes('INTERACTIVE')) {
+            if (Math.hypot(mx - 500, my - 350) < 40) { // Check distance to red dot
+                isDragging = true; dragStartX = 500; dragStartY = 350; dragCurrentX = mx; dragCurrentY = my;
+            }
+        } else {
+            for (let t of activeTargets) {
+                if (Math.hypot(mx - t.x, my - t.y) < 20) {
+                    if (t.isCorrect) {
+                        feedbackEl.style.color = "#4caf50"; feedbackEl.innerText = "Correct! Spot on physics.";
+                        isSolved = true; render(); return;
+                    } else {
+                        feedbackEl.style.color = "#ff5252"; feedbackEl.innerText = "Incorrect path. Check your angles and the normal.";
+                    }
+                }
+            }
+        }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+            const rect = canvas.getBoundingClientRect(); dragCurrentX = e.clientX - rect.left; dragCurrentY = e.clientY - rect.top; render();
+        }
+    });
+
+    canvas.addEventListener('mouseup', (e) => {
+        if (isDragging) {
+            isDragging = false;
+            if (Math.hypot(dragCurrentX - 500, dragCurrentY - 350) > 30) {
+                if (currentTask.checkLine(dragCurrentX, dragCurrentY)) {
+                    feedbackEl.style.color = "#4caf50"; feedbackEl.innerText = "Excellent! You drew a perfect bidirectional normal line.";
+                    isSolved = true;
+                } else {
+                    feedbackEl.style.color = "#ff5252"; feedbackEl.innerText = "Not quite 90°. Drag straight through the surface to create a perpendicular line.";
+                }
+            }
+            render();
+        }
+    });
+
+    loadRandomTask();
+</script>
+</body>
+</html>

@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lens vs. Pinhole: Pencil Simulator</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #121212;
+            color: #eee;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px; 
+            margin: 0;
+            height: 100vh;
+            overflow: hidden; 
+        }
+        h2 { margin: 5px 0; color: #fff; font-size: 1.2rem; }
+        p.subtitle { margin: 0 0 10px 0; color: #aaa; font-size: 0.9rem; }
+        
+        /* Grid Layout for One-Page View */
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr; 
+            grid-template-rows: auto auto; 
+            gap: 15px;
+            width: 95%;
+            max-width: 1000px;
+        }
+        
+        .top-section {
+            grid-column: 1 / -1;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+
+        .view-section {
+            grid-column: 1 / 2;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .controls-section {
+            grid-column: 2 / 3;
+        }
+        
+        canvas {
+            background: #1e1e1e;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            display: block;
+        }
+
+        /* Add cursor style for interactivity */
+        #rayCanvas {
+            cursor: default;
+        }
+
+        .controls {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            border: 1px solid #333;
+            height: fit-content;
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        label { font-size: 0.8em; color: #bbb; display: flex; justify-content: space-between; font-weight: 600;}
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: #ffcc00; margin: 0;}
+        
+        .mode-toggle {
+            grid-column: span 2;
+            display: flex;
+            background: #333;
+            border-radius: 6px;
+            padding: 3px;
+            margin-bottom: 5px;
+        }
+        .mode-btn {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            background: transparent;
+            color: #aaa;
+            cursor: pointer;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            transition: 0.2s;
+        }
+        .mode-btn.active {
+            background: #ffcc00; 
+            color: #222;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .explanation {
+            grid-column: span 2;
+            background: #222;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.85em;
+            line-height: 1.4;
+            color: #ddd;
+            border-left: 5px solid #ffcc00;
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Lens vs. Pinhole Simulator</h2>
+    <p class="subtitle">Drag the <strong>Screen</strong> directly or use the slider. Notice how <strong>Distance</strong> affects Brightness.</p>
+
+    <div class="container">
+        <div class="top-section">
+            <canvas id="rayCanvas" width="950" height="300"></canvas>
+        </div>
+        
+        <div class="view-section">
+             <canvas id="viewCanvas" width="460" height="320"></canvas>
+        </div>
+
+        <div class="controls-section">
+            <div class="controls">
+                <div class="mode-toggle">
+                    <button class="mode-btn active" onclick="setMode('lens')">Lens Mode</button>
+                    <button class="mode-btn" onclick="setMode('pinhole')">Pinhole Mode</button>
+                </div>
+
+                <div class="control-group">
+                    <label>Aperture / Hole Size <span id="apVal"></span></label>
+                    <input type="range" id="aperture" min="2" max="120" value="60">
+                </div>
+
+                <div class="control-group">
+                    <label>Screen Position <span id="scrVal"></span></label>
+                    <input type="range" id="screenPos" min="350" max="850" value="600">
+                </div>
+                
+                <div class="control-group">
+                    <label>Distance to Pencil</label>
+                    <input type="range" id="objDist" min="100" max="400" value="200">
+                </div>
+
+                 <div class="control-group" id="focalGroup">
+                    <label>Lens Curvature (Focal Length)</label>
+                    <input type="range" id="focalLen" min="50" max="250" value="150">
+                </div>
+                
+                <div class="explanation" id="explainText"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const rayCanvas = document.getElementById('rayCanvas');
+    const rayCtx = rayCanvas.getContext('2d');
+    const viewCanvas = document.getElementById('viewCanvas');
+    const viewCtx = viewCanvas.getContext('2d');
+
+    // State
+    let state = {
+        mode: 'lens', 
+        aperture: 60,
+        screenX: 600,
+        objectX: 100, 
+        lensX: 400,   
+        focalLength: 150,
+        pencilHeight: 100,
+        isDragging: false
+    };
+
+    // UI Refs
+    const inputs = {
+        aperture: document.getElementById('aperture'),
+        screenPos: document.getElementById('screenPos'),
+        objDist: document.getElementById('objDist'),
+        focalLen: document.getElementById('focalLen'),
+        apVal: document.getElementById('apVal'),
+        scrVal: document.getElementById('scrVal'),
+        explain: document.getElementById('explainText'),
+        focalGroup: document.getElementById('focalGroup')
+    };
+
+    function setMode(mode) {
+        state.mode = mode;
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+        
+        if(mode === 'pinhole') {
+            inputs.focalGroup.style.opacity = '0.2';
+            inputs.focalGroup.style.pointerEvents = 'none';
+            state.aperture = 10; 
+            inputs.aperture.value = 10;
+        } else {
+            inputs.focalGroup.style.opacity = '1';
+            inputs.focalGroup.style.pointerEvents = 'all';
+            state.aperture = 80;
+            inputs.aperture.value = 80;
+        }
+        update();
+    }
+
+    // Event Listeners
+    inputs.aperture.oninput = (e) => { state.aperture = +e.target.value; update(); };
+    inputs.screenPos.oninput = (e) => { state.screenX = +e.target.value; update(); };
+    inputs.objDist.oninput = (e) => { state.objectX = state.lensX - (+e.target.value); update(); };
+    inputs.focalLen.oninput = (e) => { state.focalLength = +e.target.value; update(); };
+
+    // --- MOUSE DRAG LISTENERS FOR SCREEN ---
+    rayCanvas.addEventListener('mousedown', (e) => {
+        const rect = rayCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        // Check if click is near the screen line (with buffer)
+        if (Math.abs(x - state.screenX) < 25) {
+            state.isDragging = true;
+        }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        // Change cursor if hovering over screen
+        if (!state.isDragging) {
+            const rect = rayCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            if(x > 0 && x < rayCanvas.width && y > 0 && y < rayCanvas.height) {
+                 if (Math.abs(x - state.screenX) < 25) {
+                    rayCanvas.style.cursor = 'col-resize';
+                } else {
+                    rayCanvas.style.cursor = 'default';
+                }
+            }
+        }
+
+        if (state.isDragging) {
+            const rect = rayCanvas.getBoundingClientRect();
+            let newX = e.clientX - rect.left;
+            
+            // Constrain to slider min/max
+            const min = parseInt(inputs.screenPos.min);
+            const max = parseInt(inputs.screenPos.max);
+            
+            if (newX < min) newX = min;
+            if (newX > max) newX = max;
+
+            state.screenX = newX;
+            inputs.screenPos.value = newX; // Sync slider
+            update();
+        }
+    });
+
+    window.addEventListener('mouseup', () => {
+        state.isDragging = false;
+    });
+
+
+    // --- DRAWING HELPERS ---
+    
+    function drawPencil(ctx, x, midY, height, scale, isViewCanvas) {
+        const h = height * scale;
+        const w = 14 * scale; 
+        
+        ctx.save();
+        ctx.translate(x, midY);
+        
+        const topY = -h/2;
+        const bottomY = h/2;
+        const eraserH = h * 0.15;
+        const metalH = h * 0.05;
+        const tipH = h * 0.15;
+        const bodyH = h - eraserH - metalH - tipH;
+        
+        // 1. Eraser (Pink) - TOP
+        ctx.fillStyle = "#ff6666"; 
+        ctx.fillRect(-w/2, topY, w, eraserH);
+        
+        // 2. Metal Band (Gray)
+        ctx.fillStyle = "#aaa";
+        ctx.fillRect(-w/2, topY + eraserH, w, metalH);
+        
+        // 3. Body (Yellow)
+        ctx.fillStyle = "#ffcc00";
+        ctx.fillRect(-w/2, topY + eraserH + metalH, w, bodyH);
+        
+        // 4. Wood Tip (Beige)
+        ctx.beginPath();
+        ctx.moveTo(-w/2, topY + eraserH + metalH + bodyH);
+        ctx.lineTo(w/2, topY + eraserH + metalH + bodyH);
+        ctx.lineTo(0, bottomY); 
+        ctx.fillStyle = "#eebb99";
+        ctx.fill();
+        
+        // 5. Graphite Lead (Black)
+        ctx.beginPath();
+        ctx.moveTo(-w/6, bottomY - tipH/3);
+        ctx.lineTo(w/6, bottomY - tipH/3);
+        ctx.lineTo(0, bottomY);
+        ctx.fillStyle = "#333";
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    function update() {
+        // 1. CLEAR
+        rayCtx.clearRect(0, 0, rayCanvas.width, rayCanvas.height);
+        viewCtx.clearRect(0, 0, viewCanvas.width, viewCanvas.height);
+        
+        inputs.apVal.innerText = `(${state.aperture}px)`;
+
+        const midY = rayCanvas.height / 2;
+        const u = state.lensX - state.objectX; 
+        const screenDist = state.screenX - state.lensX;
+        
+        // Define Points of Light (Eraser and Tip)
+        const eraserY = midY - state.pencilHeight/2 + (state.pencilHeight*0.07); 
+        const tipY = midY + state.pencilHeight/2;
+        
+        const sources = [
+            { y: eraserY, color: '#ff6666', name: 'Eraser' }, 
+            { y: tipY, color: '#4444ff', name: 'Tip' } 
+        ];
+
+        // 2. RAY CANVAS: STATIC ELEMENTS
+        // Optical Axis
+        rayCtx.strokeStyle = "#333";
+        rayCtx.setLineDash([5, 5]);
+        rayCtx.beginPath();
+        rayCtx.moveTo(0, midY);
+        rayCtx.lineTo(rayCanvas.width, midY);
+        rayCtx.stroke();
+        rayCtx.setLineDash([]);
+
+        // Draw Object (Pencil)
+        drawPencil(rayCtx, state.objectX, midY, state.pencilHeight, 1.0, false);
+
+        // Draw Lens / Barrier
+        if (state.mode === 'lens') {
+            rayCtx.fillStyle = "rgba(200, 240, 255, 0.1)";
+            rayCtx.strokeStyle = "rgba(100, 200, 255, 0.8)";
+            
+            // Dynamic Lens Thickness
+            const lensThicknessX = Math.max(3, 1200 / state.focalLength);
+
+            rayCtx.beginPath();
+            rayCtx.ellipse(state.lensX, midY, lensThicknessX, state.aperture/2 + 5, 0, 0, Math.PI * 2);
+            rayCtx.fill();
+            rayCtx.stroke();
+            
+            // Focal Point
+            rayCtx.fillStyle = "#fff";
+            rayCtx.fillRect(state.lensX + state.focalLength, midY - 3, 2, 6);
+            rayCtx.font = "12px Arial";
+            rayCtx.fillText("F", state.lensX + state.focalLength - 3, midY + 15);
+        } else {
+            rayCtx.fillStyle = "#444";
+            rayCtx.fillRect(state.lensX - 3, 0, 6, midY - state.aperture/2);
+            rayCtx.fillRect(state.lensX - 3, midY + state.aperture/2, 6, midY);
+            rayCtx.strokeStyle = "#888";
+            rayCtx.strokeRect(state.lensX - 3, midY - state.aperture/2, 6, state.aperture);
+        }
+
+        // Draw Screen (White if dragging, grey otherwise)
+        rayCtx.fillStyle = state.isDragging ? "#fff" : "#eee";
+        rayCtx.fillRect(state.screenX, 20, 4, 260);
+        rayCtx.fillStyle = "#fff";
+        rayCtx.fillText("Screen", state.screenX - 15, 15);
+
+
+        // 3. CALCULATE BLUR & MAGNIFICATION
+        let blurRadius = 0;
+        let magnification = 1;
+        
+        if (state.mode === 'lens') {
+            // 1/f = 1/u + 1/v
+            let v_ideal = 0;
+            if (u > state.focalLength) {
+                v_ideal = (state.focalLength * u) / (u - state.focalLength);
+                magnification = v_ideal / u;
+            } else {
+                v_ideal = -9999;
+                magnification = 1; 
+            }
+
+            if (v_ideal > 0) {
+                blurRadius = (state.aperture * Math.abs(screenDist - v_ideal) / v_ideal) / 2;
+            } else {
+                blurRadius = 30; 
+            }
+        } else {
+            magnification = screenDist / u;
+            blurRadius = (state.aperture * (u + screenDist) / u) / 2;
+        }
+
+        // 4. DRAW RAYS
+        rayCtx.globalAlpha = 0.6;
+        sources.forEach(src => {
+            rayCtx.strokeStyle = src.color;
+            rayCtx.lineWidth = 1.5;
+            
+            const projectedY = midY - (src.y - midY) * magnification; 
+            const offsets = [-state.aperture/2, 0, state.aperture/2];
+            
+            offsets.forEach(offset => {
+                rayCtx.beginPath();
+                rayCtx.moveTo(state.objectX, src.y);
+                rayCtx.lineTo(state.lensX, midY + offset);
+                
+                let targetY;
+                if(state.mode === 'lens') {
+                    if(state.lensX + ((state.focalLength * u) / (u - state.focalLength)) > 0) {
+                        const v_ideal = (state.focalLength * u) / (u - state.focalLength);
+                        const slope = (projectedY - (midY+offset)) / v_ideal;
+                        targetY = (midY+offset) + slope * screenDist;
+                    } else {
+                        targetY = (midY+offset); 
+                    }
+                } else {
+                    const slope = ((midY + offset) - src.y) / (state.lensX - state.objectX);
+                    targetY = (midY + offset) + slope * screenDist;
+                }
+
+                rayCtx.lineTo(state.screenX, targetY);
+                rayCtx.stroke();
+            });
+        });
+        rayCtx.globalAlpha = 1.0;
+
+
+        // 5. DRAW SIMULATED VIEW
+        // Background
+        viewCtx.fillStyle = "#000";
+        viewCtx.fillRect(0, 0, viewCanvas.width, viewCanvas.height);
+        viewCtx.fillStyle = "#888";
+        viewCtx.font = "14px sans-serif";
+        viewCtx.fillText("Simulated View (Upside Down)", 10, 20);
+
+        const vCX = viewCanvas.width / 2;
+        const vCY = viewCanvas.height / 2;
+
+        viewCtx.save();
+        viewCtx.translate(vCX, vCY);
+        viewCtx.rotate(Math.PI); 
+
+        viewCtx.filter = `blur(${Math.abs(blurRadius)}px)`;
+        
+        // --- UPDATED BRIGHTNESS LOGIC ---
+        
+        let brightness = 1.0;
+        const maxAp = 120;
+        
+        // Proximity Effect:
+        // Use a base distance of 200. If closer, brighter.
+        // Cap the multiplier to prevent explosion when u is tiny.
+        const distFactor = Math.min(3.0, 220 / u);
+
+        if(state.mode === 'lens') {
+             // 1. Dimmer Lens Mode:
+             // Scale from 0.15 (very dim) to 0.85 (bright) based on aperture, then apply distance.
+             let apFactor = state.aperture / maxAp;
+             let rawBrightness = (0.15 + (apFactor * 0.85)) * distFactor;
+             
+             // Lens is efficient, so cap easily at 1.0
+             brightness = Math.min(1.0, rawBrightness);
+        } else {
+             // 2. Brighter Pinhole Scale:
+             // Scale from 0.4 (visible) to >1.0 based on aperture.
+             // We allow the base calculation to go over 1.0 so that distance doesn't darken it too fast.
+             let apFactor = state.aperture / maxAp;
+             let rawBrightness = (0.4 + (apFactor * 1.5)) * distFactor;
+             
+             // Cap at 1.0 for rendering
+             brightness = Math.min(1.0, rawBrightness);
+        }
+        
+        viewCtx.globalAlpha = brightness;
+
+        drawPencil(viewCtx, 0, 0, state.pencilHeight, magnification, true);
+
+        viewCtx.restore();
+
+        // 6. EXPLANATION TEXT
+        let txt = "";
+        if (state.mode === 'lens') {
+            if (blurRadius < 2) {
+                txt = "<strong>Status: Focused!</strong><br>The rays meet perfectly at the screen. The pencil is sharp.";
+            } else {
+                txt = "<strong>Status: Blurry</strong><br>The rays haven't met yet (or crossed and separated). Moving the screen changes where you 'catch' the light.";
+            }
+        } else {
+            if (state.aperture < 15) {
+                txt = "<strong>Status: High Resolution</strong><br>Small hole = Sharp image. <br><em>Note: It is dim because very little light can get through the tiny hole.</em>";
+            } else {
+                txt = "<strong>Status: Low Resolution</strong><br>Large hole = Blurry image. <br><em>Note: It is brighter because more light gets through, but the rays mix together.</em>";
+            }
+        }
+        inputs.explain.innerHTML = txt;
+    }
+
+    // Init
+    update();
+
+</script>
+</body>
+</html>

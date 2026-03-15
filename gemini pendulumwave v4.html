@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Pendulum Wave Lab v3</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #f0f0f0; font-family: 'Segoe UI', sans-serif; display: flex; }
+        #sidebar { 
+            width: 260px; height: 100vh; background: white; border-right: 1px solid #ccc; 
+            overflow-y: auto; padding: 20px; box-sizing: border-box; z-index: 10;
+        }
+        canvas { flex-grow: 1; }
+        h3 { margin: 0 0 15px 0; font-size: 18px; color: #333; border-bottom: 2px solid #3498db; padding-bottom: 5px; }
+        .data-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #eee; font-family: monospace; }
+        .label { font-weight: bold; color: #555; }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <h3>Live Data</h3>
+        <div id="stats-list"></div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "orbit": "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js",
+                "gui": "https://cdn.jsdelivr.net/npm/lil-gui@0.19/+esm"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'orbit';
+        import { GUI } from 'gui';
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf0f0f0);
+        
+        const camera = new THREE.PerspectiveCamera(60, (window.innerWidth - 260) / window.innerHeight, 0.1, 2000);
+        camera.position.set(40, 30, 50);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth - 260, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // --- Lighting ---
+        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+        const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+        sun.position.set(20, 100, 50);
+        sun.castShadow = true;
+        sun.shadow.camera.top = 100;
+        sun.shadow.camera.bottom = -100;
+        sun.shadow.camera.left = -100;
+        sun.shadow.camera.right = 100;
+        scene.add(sun);
+
+        // --- Parameters ---
+        const params = {
+            mode: 'Synchronized',
+            count: 15,
+            baseLength: 20,      // Starting point for modes
+            stepValue: 1.1,      // Growth for Geometric/Arithmetic
+            syncCycle: 60,       // How long for a full reset in Sync mode
+            baseOscillations: 12, // Longest pendulum oscillations per cycle
+            amplitude: 0.5,
+            decay: 0.0,
+            reset: () => { startTime = performance.now(); amplitudes.fill(params.amplitude); }
+        };
+
+        let pendulums = [];
+        let amplitudes = [];
+        let startTime = performance.now();
+        const mainGroup = new THREE.Group();
+        const frameGroup = new THREE.Group();
+        scene.add(mainGroup);
+        mainGroup.add(frameGroup);
+
+        // Floor (static)
+        const floor = new THREE.Mesh(
+            new THREE.PlaneGeometry(500, 500), 
+            new THREE.MeshStandardMaterial({ color: 0xdddddd })
+        );
+        floor.rotation.x = -Math.PI/2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        function updateSidebar() {
+            const list = document.getElementById('stats-list');
+            list.innerHTML = '';
+            pendulums.forEach((p, i) => {
+                const row = document.createElement('div');
+                row.className = 'data-row';
+                row.innerHTML = `<span class="label">P${i+1}:</span> <span>${p.length.toFixed(2)}m</span>`;
+                list.appendChild(row);
+            });
+        }
+
+        function build() {
+            // Cleanup
+            pendulums.forEach(p => mainGroup.remove(p.group));
+            frameGroup.clear();
+            pendulums = [];
+            amplitudes = new Array(params.count).fill(params.amplitude);
+
+            const spacing = 2.5;
+            const totalWidth = (params.count - 1) * spacing;
+            const g = 9.81;
+
+            // 1. Calculate Lengths first to know how tall the frame needs to be
+            let tempLengths = [];
+            for (let i = 0; i < params.count; i++) {
+                let L;
+                if (params.mode === 'Synchronized') {
+                    // Logic: L = g * (T / 2pi)^2 where T = CycleTime / (BaseOsc + i)
+                    const T = params.syncCycle / (params.baseOscillations + i);
+                    L = g * Math.pow(T / (2 * Math.PI), 2) * 20; // x20 for visual scale
+                } else if (params.mode === 'Arithmetic') {
+                    L = params.baseLength + (i * params.stepValue);
+                } else { // Geometric
+                    L = params.baseLength * Math.pow(params.stepValue, i);
+                }
+                tempLengths.push(L);
+            }
+
+            const maxLength = Math.max(...tempLengths);
+            const frameHeight = maxLength + 5;
+
+            // 2. Build Frame
+            const woodMat = new THREE.MeshStandardMaterial({ color: 0x4e342e });
+            const topBar = new THREE.Mesh(new THREE.BoxGeometry(2, 1.5, totalWidth + 6), woodMat);
+            topBar.position.y = frameHeight;
+            topBar.castShadow = true;
+            frameGroup.add(topBar);
+
+            const pillarGeo = new THREE.BoxGeometry(2, frameHeight, 2);
+            const p1 = new THREE.Mesh(pillarGeo, woodMat);
+            p1.position.set(0, frameHeight/2, totalWidth/2 + 2);
+            const p2 = p1.clone();
+            p2.position.z = -totalWidth/2 - 2;
+            frameGroup.add(p1, p2);
+
+            // 3. Build Pendulums
+            tempLengths.forEach((L, i) => {
+                const group = new THREE.Group();
+                
+                const string = new THREE.Line(
+                    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,-L,0)]),
+                    new THREE.LineBasicMaterial({ color: 0x777777 })
+                );
+                
+                const ball = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.8, 32, 32),
+                    new THREE.MeshStandardMaterial({ 
+                        color: new THREE.Color().setHSL(i/params.count, 0.6, 0.4),
+                        metalness: 0.4, roughness: 0.3
+                    })
+                );
+                ball.position.y = -L;
+                ball.castShadow = true;
+
+                group.add(string, ball);
+                group.position.set(0, frameHeight, (i * spacing) - (totalWidth/2));
+                mainGroup.add(group);
+                pendulums.push({ group, length: L });
+            });
+
+            updateSidebar();
+        }
+
+        // --- GUI ---
+        const gui = new GUI();
+        gui.add(params, 'mode', ['Synchronized', 'Arithmetic', 'Geometric']).name('Dance Logic').onChange(build);
+        gui.add(params, 'count', 3, 30, 1).name('Number of Balls').onChange(build);
+        
+        const folder = gui.addFolder('Fine Tuning');
+        folder.add(params, 'syncCycle', 10, 120).name('Sync Cycle (s)').onChange(build);
+        folder.add(params, 'baseOscillations', 5, 50, 1).name('Base Swings').onChange(build);
+        folder.add(params, 'baseLength', 5, 50).name('Manual Start L').onChange(build);
+        folder.add(params, 'stepValue', 0.1, 3).name('Growth Step').onChange(build);
+
+        gui.add(params, 'amplitude', 0.1, 1.5).name('Swing Width');
+        gui.add(params, 'decay', 0, 0.005).name('Air Decay');
+        gui.add(params, 'reset').name('Restart');
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const elapsed = (performance.now() - startTime) / 1000;
+            const g = 9.81;
+
+            pendulums.forEach((p, i) => {
+                amplitudes[i] *= (1 - params.decay);
+                // We use the same 'g' scaling as the build function for physics consistency
+                const period = 2 * Math.PI * Math.sqrt(p.length / (g * 20)); 
+                p.group.rotation.z = amplitudes[i] * Math.cos((2 * Math.PI * elapsed) / period);
+            });
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        build();
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = (window.innerWidth - 260) / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth - 260, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
